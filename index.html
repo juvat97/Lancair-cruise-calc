@@ -144,13 +144,13 @@
   }
   .row input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none;
-    width: 28px; height: 28px;
+    width: 25px; height: 25px;
     border-radius: 50%;
     background: var(--text);
     cursor: pointer;
   }
   .row input[type=range]::-moz-range-thumb {
-    width: 28px; height: 28px;
+    width: 25px; height: 25px;
     border-radius: 50%;
     background: var(--text);
     cursor: pointer;
@@ -300,14 +300,14 @@
     <div class="row">
       <label>Taxi / contingency (gal)</label>
       <input type="number" id="taxi-fuel" value="3" min="0" max="20" step="1">
-      <span class="hint">added to min start fuel</span>
+      <span class="hint">added to Min takeoff fuel</span>
     </div>
     <div class="row">
       <label>Alternate distance (nm)</label>
       <input type="number" id="alt-dist" value="0" min="0" max="300" step="5">
       <span class="hint" id="alt-fuel-hint">= 0.0 gal</span>
     </div>
-    <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 33 gph / 250 KIAS / 10,000 ft MSL (~288 KTAS, no wind). Taxi/contingency added to min start fuel only.</p>
+    <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 33 gph / 250 KIAS / 10,000 ft MSL (~288 KTAS, no wind). Taxi/contingency added to Min takeoff fuel only.</p>
   </div>
 
   <div class="card">
@@ -423,7 +423,7 @@
     <div class="metric-grid cols3 spacer">
       <div class="metric"><div class="m-label">Reserve</div><div class="m-num" id="r-reserve">—</div><div class="m-unit">gal</div></div>
       <div class="metric"><div class="m-label">Alternate</div><div class="m-num" id="r-alt-fuel">—</div><div class="m-unit">gal</div></div>
-      <div class="metric teal"><div class="m-label">Min start fuel</div><div class="m-num" id="r-min-start">—</div><div class="m-unit">gal</div></div>
+      <div class="metric teal"><div class="m-label">Min takeoff fuel</div><div class="m-num" id="r-min-takeoff">—</div><div class="m-unit">gal</div></div>
     </div>
 
     <div class="phase-label">Key planning numbers</div>
@@ -445,7 +445,7 @@
     <div class="chart-wrap">
       <canvas id="fuelChart"></canvas>
     </div>
-    <p class="note">Min start fuel = trip + reserve + alternate + taxi/contingency. Fuel at landing = FOB minus trip fuel. Margin = fuel at landing minus reserve minus alternate. Descent distance capped at available leg distance after climb. Alternate at 33 gph / 250 KIAS / 10,000 ft ISA (~288 KTAS), no wind applied. Cruise FF scaled from M601 flat-rating model — update with actual POH data. All fuel in U.S. gallons.</p>
+    <p class="note">Min takeoff fuel = trip + reserve + alternate + taxi/contingency. Fuel at landing = FOB minus trip fuel. Margin = fuel at landing minus reserve minus alternate. Descent distance capped at available leg distance after climb. Alternate at 33 gph / 250 KIAS / 10,000 ft ISA (~288 KTAS), no wind applied. Cruise FF scaled from M601 flat-rating model — update with actual POH data. All fuel in U.S. gallons.</p>
   </div>
 
 </div>
@@ -582,7 +582,7 @@ function update(){
 
   document.getElementById('r-reserve').textContent=reserveGal;
   document.getElementById('r-alt-fuel').textContent=altFuelGal;
-  document.getElementById('r-min-start').textContent=minStart;
+  document.getElementById('r-min-takeoff').textContent=minStart;
   document.getElementById('r-tod').textContent=r.todNm;
   document.getElementById('r-arr-fuel').textContent=landFuel;
   document.getElementById('r-margin').textContent=margin;

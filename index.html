@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Lancair IV-PT Cruise Optimizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f4f0;
+    --bg3: #eeedea;
+    --text: #1a1a18;
+    --text2: #6b6a65;
+    --text3: #9b9a96;
+    --border: rgba(0,0,0,0.12);
+    --border2: rgba(0,0,0,0.22);
+    --blue-bg: #E6F1FB;
+    --blue-text: #0C447C;
+    --blue-label: #185FA5;
+    --amber-bg: #FAEEDA;
+    --amber-text: #633806;
+    --amber-label: #854F0B;
+    --red-bg: #FCEBEB;
+    --red-text: #791F1F;
+    --red-label: #A32D2D;
+    --warn-bg: #FAEEDA;
+    --warn-text: #854F0B;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1e1e1c;
+      --bg2: #2a2a28;
+      --bg3: #323230;
+      --text: #f0efe8;
+      --text2: #a8a79f;
+      --text3: #6b6a65;
+      --border: rgba(255,255,255,0.12);
+      --border2: rgba(255,255,255,0.22);
+      --blue-bg: #0c2d4a;
+      --blue-text: #85B7EB;
+      --blue-label: #B5D4F4;
+      --amber-bg: #412402;
+      --amber-text: #FAC775;
+      --amber-label: #EF9F27;
+      --red-bg: #501313;
+      --red-text: #F09595;
+      --red-label: #F7C1C1;
+      --warn-bg: #412402;
+      --warn-text: #FAC775;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg3);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0 0 3rem;
+  }
+
+  header {
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 1rem 1.25rem 0.875rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  header h1 {
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 1rem 1rem 0;
+  }
+
+  .card {
+    background: var(--bg);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    padding: 1rem 1.125rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 0.875rem;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0.8rem;
+  }
+
+  .row:last-child { margin-bottom: 0; }
+
+  .row label {
+    font-size: 13px;
+    color: var(--text2);
+    width: 160px;
+    flex-shrink: 0;
+    line-height: 1.3;
+  }
+
+  .row input[type=range] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border2);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .row input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--text);
+    cursor: pointer;
+  }
+
+  .row .val {
+    font-size: 13px;
+    font-weight: 500;
+    min-width: 76px;
+    text-align: right;
+    color: var(--text);
+  }
+
+  .row input[type=number] {
+    width: 76px;
+    text-align: right;
+    font-size: 14px;
+    padding: 6px 8px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    color: var(--text);
+    -moz-appearance: textfield;
+  }
+
+  .row input[type=number]::-webkit-inner-spin-button,
+  .row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  .row input[type=number]:focus {
+    outline: none;
+    border-color: #378ADD;
+    box-shadow: 0 0 0 3px rgba(55,138,221,0.15);
+  }
+
+  .row .hint {
+    font-size: 12px;
+    color: var(--text3);
+    flex: 1;
+  }
+
+  .wind-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+  }
+
+  .wind-row label {
+    font-size: 13px;
+    color: var(--text2);
+    width: 160px;
+    flex-shrink: 0;
+  }
+
+  .wind-row input[type=number] {
+    width: 68px;
+    text-align: right;
+    font-size: 14px;
+    padding: 6px 8px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    color: var(--text);
+    -moz-appearance: textfield;
+  }
+
+  .wind-row input[type=number]::-webkit-inner-spin-button,
+  .wind-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  select {
+    font-size: 13px;
+    padding: 6px 8px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  select:focus { outline: none; border-color: #378ADD; }
+
+  .gs-badge {
+    font-size: 12px;
+    color: var(--text3);
+    margin-left: 4px;
+  }
+
+  .metric-grid {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 0;
+  }
+
+  .metric-grid.cols4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .metric-grid.cols3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .spacer { margin-bottom: 0.75rem; }
+
+  @media (max-width: 480px) {
+    .metric-grid.cols4 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  }
+
+  .metric {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 0.6rem 0.75rem;
+  }
+
+  .metric .m-label {
+    font-size: 11px;
+    color: var(--text2);
+    margin-bottom: 2px;
+  }
+
+  .metric .m-num {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.15;
+  }
+
+  .metric .m-unit {
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .metric.blue { background: var(--blue-bg); }
+  .metric.blue .m-label, .metric.blue .m-unit { color: var(--blue-label); }
+  .metric.blue .m-num { color: var(--blue-text); }
+
+  .metric.amber { background: var(--amber-bg); }
+  .metric.amber .m-label, .metric.amber .m-unit { color: var(--amber-label); }
+  .metric.amber .m-num { color: var(--amber-text); }
+
+  .metric.red { background: var(--red-bg); }
+  .metric.red .m-label, .metric.red .m-unit { color: var(--red-label); }
+  .metric.red .m-num { color: var(--red-text); }
+
+  .warn-box {
+    display: none;
+    font-size: 13px;
+    color: var(--warn-text);
+    background: var(--warn-bg);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin-bottom: 0.75rem;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  .legend span { display: flex; align-items: center; gap: 4px; }
+
+  .legend i {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 200px;
+  }
+
+  .note {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 0.75rem;
+    line-height: 1.55;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Lancair IV-PT Cruise Optimizer</h1>
+  <p>M601 altitude &amp; fuel planning</p>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <div class="section-label">Flight inputs</div>
+    <div class="row">
+      <label>Leg distance (nm)</label>
+      <input type="range" id="dist" min="25" max="1400" value="500" step="5">
+      <span class="val" id="dist-out">500 nm</span>
+    </div>
+    <div class="row">
+      <label>Target cruise altitude (ft)</label>
+      <input type="range" id="alt" min="5000" max="28000" value="17000" step="1000">
+      <span class="val" id="alt-out">17,000</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Winds aloft at cruise altitude</div>
+    <div class="wind-row">
+      <label>Wind speed (kts)</label>
+      <input type="number" id="wind-spd" value="0" min="0" max="150" step="1">
+      <select id="wind-dir">
+        <option value="head">Headwind</option>
+        <option value="tail">Tailwind</option>
+      </select>
+      <span class="gs-badge" id="gs-hint">GS: 280 kts</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">M601 fuel flows (gph — from your POH)</div>
+    <div class="row">
+      <label>Climb fuel flow (gph)</label>
+      <input type="number" id="ff-climb" value="37" min="10" max="50" step="0.5">
+      <span class="hint">at climb power</span>
+    </div>
+    <div class="row">
+      <label>Cruise fuel flow (gph)</label>
+      <input type="number" id="ff-cruise" value="28" min="10" max="60" step="0.5">
+      <span class="hint">at target altitude</span>
+    </div>
+    <div class="row">
+      <label>Descent fuel flow (gph)</label>
+      <input type="number" id="ff-desc" value="35" min="2" max="40" step="0.5">
+    </div>
+    <div class="row">
+      <label>Avg climb rate (fpm)</label>
+      <input type="number" id="climb-rate" value="1400" min="500" max="5000" step="100">
+    </div>
+    <div class="row">
+      <label>Avg descent rate (fpm)</label>
+      <input type="number" id="desc-rate" value="1000" min="500" max="3000" step="100">
+    </div>
+    <div class="row">
+      <label>Cruise TAS (kts)</label>
+      <input type="number" id="tas" value="280" min="150" max="360" step="5">
+      <span class="hint">at target altitude</span>
+    </div>
+  </div>
+
+  <div class="warn-box" id="warn-box"></div>
+
+  <div class="card">
+    <div class="section-label">Results — target altitude</div>
+    <div class="metric-grid cols4 spacer">
+      <div class="metric"><div class="m-label">Climb fuel</div><div class="m-num" id="r-cfuel">—</div><div class="m-unit">gal</div></div>
+      <div class="metric"><div class="m-label">Cruise fuel</div><div class="m-num" id="r-crfuel">—</div><div class="m-unit">gal</div></div>
+      <div class="metric"><div class="m-label">Descent fuel</div><div class="m-num" id="r-dfuel">—</div><div class="m-unit">gal</div></div>
+      <div class="metric blue"><div class="m-label">Total block fuel</div><div class="m-num" id="r-total">—</div><div class="m-unit">gal</div></div>
+    </div>
+    <div class="metric-grid cols3 spacer">
+      <div class="metric"><div class="m-label">Climb time</div><div class="m-num" id="r-ctime">—</div><div class="m-unit">min</div></div>
+      <div class="metric"><div class="m-label">Cruise time</div><div class="m-num" id="r-crtime">—</div><div class="m-unit">min</div></div>
+      <div class="metric blue"><div class="m-label">Total block time</div><div class="m-num" id="r-ttime">—</div><div class="m-unit">hr+min</div></div>
+    </div>
+    <div class="metric-grid cols3">
+      <div class="metric"><div class="m-label">Ground speed</div><div class="m-num" id="r-gs">—</div><div class="m-unit">kts</div></div>
+      <div class="metric"><div class="m-label">Cruise distance</div><div class="m-num" id="r-crdist">—</div><div class="m-unit">nm</div></div>
+      <div class="metric blue" id="rem-card"><div class="m-label">Fuel remaining</div><div class="m-num" id="r-rem">—</div><div class="m-unit">gal of 145</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Altitude comparison — total block fuel</div>
+    <div class="legend">
+      <span><i style="background:#B5D4F4;"></i> other altitudes</span>
+      <span><i style="background:#185FA5;"></i> selected altitude</span>
+      <span><i style="background:#639922;"></i> lowest fuel burn</span>
+      <span><i style="background:#B4B2A9;"></i> unreachable</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="fuelChart"></canvas>
+    </div>
+    <p class="note">All fuel in U.S. gallons. Winds affect ground speed and cruise time only — climb/descent use TAS. Comparison chart applies the same wind to all altitudes. Fuel remaining assumes full tanks (145 gal useable). Cruise FF is scaled from your entered anchor value using an M601 flat-rating model — efficiency holds to ~FL190 then degrades. Always validate against your POH before flight planning.</p>
+  </div>
+
+</div>
+
+<script>
+const alts = [5000,8000,10000,12000,14000,17000,19000,21000,23000,25000,28000];
+const altLabels = alts.map(a => a >= 18000 ? 'FL'+(a/100) : (a/1000)+'k');
+const USEABLE = 145;
+
+function fmtTime(totalMins) {
+  const h = Math.floor(totalMins / 60);
+  const m = Math.round(totalMins % 60);
+  return h + '+' + String(m).padStart(2, '0');
+}
+
+function cruiseGphAtAlt(altFt, anchorAlt, anchorGph) {
+  const diff = altFt - anchorAlt;
+  let factor;
+  if (altFt <= 19000) {
+    factor = 1 - (diff / 1000) * 0.008;
+  } else {
+    const to19 = 19000 - anchorAlt;
+    const above19 = altFt - 19000;
+    factor = 1 - (to19 / 1000) * 0.008 + (above19 / 1000) * 0.018;
+  }
+  return anchorGph * Math.max(0.6, Math.min(1.5, factor));
+}
+
+function getGS(tas, windSpd, windDir) {
+  return windDir === 'tail' ? tas + windSpd : Math.max(50, tas - windSpd);
+}
+
+function compute(distNm, altFt, climbGph, cruiseGph, descGph, climbRateFpm, descRateFpm, tas, windSpd, windDir) {
+  const gs = getGS(tas, windSpd, windDir);
+  const climbMins = altFt / climbRateFpm;
+  const descMins = altFt / descRateFpm;
+  const climbGal = climbGph * (climbMins / 60);
+  const descGal = descGph * (descMins / 60);
+  const climbDistNm = (tas * 0.55) * (climbMins / 60);
+  const descDistNm = (tas * 0.70) * (descMins / 60);
+  const cruiseDistNm = Math.max(0, distNm - climbDistNm - descDistNm);
+  const cruiseMins = cruiseDistNm > 0 ? (cruiseDistNm / gs) * 60 : 0;
+  const cruiseGal = cruiseGph * (cruiseMins / 60);
+  const totalGal = climbGal + cruiseGal + descGal;
+  const totalMins = climbMins + cruiseMins + descMins;
+  return {
+    climbGal: +climbGal.toFixed(1),
+    cruiseGal: +cruiseGal.toFixed(1),
+    descGal: +descGal.toFixed(1),
+    totalGal: +totalGal.toFixed(1),
+    remainingGal: +(USEABLE - totalGal).toFixed(1),
+    climbMins: Math.round(climbMins),
+    cruiseMins: Math.round(cruiseMins),
+    totalMins: totalMins,
+    cruiseDistNm: Math.round(cruiseDistNm),
+    gs: Math.round(gs),
+    noAlt: cruiseDistNm <= 0
+  };
+}
+
+let chart = null;
+
+function update() {
+  const dist     = parseInt(document.getElementById('dist').value);
+  const alt      = parseInt(document.getElementById('alt').value);
+  const windSpd  = parseFloat(document.getElementById('wind-spd').value) || 0;
+  const windDir  = document.getElementById('wind-dir').value;
+  const ffClimb  = parseFloat(document.getElementById('ff-climb').value) || 37;
+  const ffCruise = parseFloat(document.getElementById('ff-cruise').value) || 28;
+  const ffDesc   = parseFloat(document.getElementById('ff-desc').value) || 35;
+  const climbRate= parseFloat(document.getElementById('climb-rate').value) || 1400;
+  const descRate = parseFloat(document.getElementById('desc-rate').value) || 1000;
+  const tas      = parseFloat(document.getElementById('tas').value) || 280;
+
+  document.getElementById('dist-out').textContent = dist + ' nm';
+  document.getElementById('alt-out').textContent = alt.toLocaleString();
+  document.getElementById('gs-hint').textContent = 'GS: ' + Math.round(getGS(tas, windSpd, windDir)) + ' kts';
+
+  const r = compute(dist, alt, ffClimb, ffCruise, ffDesc, climbRate, descRate, tas, windSpd, windDir);
+
+  document.getElementById('r-cfuel').textContent = r.climbGal;
+  document.getElementById('r-crfuel').textContent = r.cruiseGal;
+  document.getElementById('r-dfuel').textContent = r.descGal;
+  document.getElementById('r-total').textContent = r.totalGal;
+  document.getElementById('r-ctime').textContent = r.climbMins;
+  document.getElementById('r-crtime').textContent = r.cruiseMins;
+  document.getElementById('r-ttime').textContent = fmtTime(r.totalMins);
+  document.getElementById('r-gs').textContent = r.gs;
+  document.getElementById('r-crdist').textContent = r.cruiseDistNm;
+  document.getElementById('r-rem').textContent = r.remainingGal;
+
+  const remCard = document.getElementById('rem-card');
+  if (r.remainingGal < 0) {
+    remCard.className = 'metric red';
+  } else if (r.remainingGal < 20) {
+    remCard.className = 'metric amber';
+  } else {
+    remCard.className = 'metric blue';
+  }
+
+  const warnBox = document.getElementById('warn-box');
+  if (r.noAlt) {
+    warnBox.style.display = 'block';
+    warnBox.textContent = 'Climb + descent distance exceeds leg distance — cannot reach this altitude on this leg. Reduce target altitude.';
+  } else if (r.remainingGal < 0) {
+    warnBox.style.display = 'block';
+    warnBox.textContent = 'Insufficient fuel — this leg exceeds 145 gal useable capacity.';
+  } else {
+    warnBox.style.display = 'none';
+  }
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const fuelData = alts.map(a => {
+    const gph = cruiseGphAtAlt(a, alt, ffCruise);
+    const tasAdj = Math.max(160, tas * (1 + (a - alt) / 1000 * 0.012));
+    const res = compute(dist, a, ffClimb, gph, ffDesc, climbRate, descRate, tasAdj, windSpd, windDir);
+    return res.noAlt ? null : res.totalGal;
+  });
+
+  const validFuels = fuelData.filter(f => f !== null);
+  const minFuel = validFuels.length ? Math.min(...validFuels) : null;
+
+  const bgColors = alts.map((a, i) => {
+    if (fuelData[i] === null) return isDark ? '#444441' : '#B4B2A9';
+    if (fuelData[i] === minFuel) return isDark ? '#3B6D11' : '#639922';
+    if (a === alt) return isDark ? '#0C447C' : '#185FA5';
+    return isDark ? '#0c2d4a' : '#B5D4F4';
+  });
+
+  const displayData = fuelData.map(f => f === null ? 0 : f);
+  const tickColor = isDark ? '#6b6a65' : '#888780';
+  const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
+
+  if (chart) {
+    chart.data.datasets[0].data = displayData;
+    chart.data.datasets[0].backgroundColor = bgColors;
+    chart.options.scales.x.ticks.color = tickColor;
+    chart.options.scales.y.ticks.color = tickColor;
+    chart.options.scales.y.title.color = tickColor;
+    chart.options.scales.y.grid.color = gridColor;
+    chart.update('none');
+  } else {
+    chart = new Chart(document.getElementById('fuelChart'), {
+      type: 'bar',
+      data: {
+        labels: altLabels,
+        datasets: [{ data: displayData, backgroundColor: bgColors, borderRadius: 3 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ctx.parsed.y === 0 ? 'cannot reach altitude' : ctx.parsed.y + ' gal' } }
+        },
+        scales: {
+          x: { ticks: { font: { size: 11 }, autoSkip: false, color: tickColor }, grid: { display: false } },
+          y: {
+            ticks: { font: { size: 11 }, color: tickColor },
+            grid: { color: gridColor },
+            title: { display: true, text: 'total fuel (gal)', font: { size: 11 }, color: tickColor }
+          }
+        }
+      }
+    });
+  }
+}
+
+document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', update));
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', update);
+update();
+</script>
+</body>
+</html>

@@ -667,8 +667,8 @@ function update(){
   setMetricColor('margin-metric', margin<0?'red':margin<10?'amber':'green');
 
   var distSlider=document.getElementById('dist');
-  var maxDist=25;
-  if(fixedCosts<fobAfterTaxi){
+  var maxDist=0;
+  if(fixedCosts<=fobAfterTaxi){
     var lo=25,hi=1400;
     for(var iter=0;iter<20;iter++){
       var mid=Math.round((lo+hi)/2);
@@ -676,11 +676,12 @@ function update(){
       if(rT.totalGal+fixedCosts<=fobAfterTaxi){maxDist=mid;lo=mid+1;}else{hi=mid-1;}
     }
   }
-  maxDist=Math.max(25,Math.min(maxDist,1400));
-  if(parseInt(distSlider.max)!==maxDist) distSlider.max=maxDist;
+  maxDist=Math.min(Math.max(maxDist,0),1400);
+  distSlider.max=Math.max(maxDist,25);
   if(dist>maxDist){
-    distSlider.value=maxDist;
-    document.getElementById('dist-out').textContent=maxDist+' nm';
+    var newDist=Math.max(maxDist,0);
+    distSlider.value=newDist;
+    document.getElementById('dist-out').textContent=newDist+' nm';
     window.update && window.update();
     return;
   }

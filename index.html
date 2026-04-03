@@ -287,35 +287,6 @@
 <div class="container">
 
   <div class="card">
-    <div class="section-label">Fuel on board &amp; reserves</div>
-    <div class="row">
-      <label>Fuel on board (gal)</label>
-      <input type="number" id="fob" value="145" min="1" max="145" step="1">
-      <span class="hint">useable max 145</span>
-    </div>
-    <div class="row">
-      <label>Reserve fuel flow (gph)</label>
-      <input type="number" id="reserve-gph" value="33" min="5" max="60" step="0.5">
-      <span class="hint" id="reserve-gal-hint">= 33.0 gal (60 min)</span>
-    </div>
-    <div class="row">
-      <label>Reserve duration (min)</label>
-      <input type="number" id="reserve-mins" value="60" min="0" max="120" step="5">
-    </div>
-    <div class="row">
-      <label>Taxi / contingency (gal)</label>
-      <input type="number" id="taxi-fuel" value="3" min="0" max="20" step="1">
-      <span class="hint">added to Min takeoff fuel</span>
-    </div>
-    <div class="row">
-      <label>Alternate distance (nm)</label>
-      <input type="number" id="alt-dist" value="0" min="0" max="300" step="5">
-      <span class="hint" id="alt-fuel-hint">= 0.0 gal</span>
-    </div>
-    <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 33 gph / 250 KIAS / 10,000 ft MSL (~288 KTAS, no wind). Taxi/contingency added to Min takeoff fuel only.</p>
-  </div>
-
-  <div class="card">
     <div class="section-label">Departure</div>
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.75rem;">
       <div style="flex:1;">
@@ -336,8 +307,9 @@
     <div id="dep-wx" style="display:none;border-radius:var(--radius);background:var(--bg2);padding:8px 10px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
   </div>
 
-  <div style="display:flex;justify-content:center;align-items:center;margin:-0.25rem 0;position:relative;height:36px;">
+  <div style="display:flex;justify-content:center;align-items:center;margin:-0.25rem 0;position:relative;height:36px;gap:8px;">
     <div style="position:absolute;left:0;right:0;top:50%;border-top:0.5px solid var(--border);"></div>
+    <div id="airport-dist-display" style="display:none;position:relative;background:var(--bg);padding:0 10px;font-size:12px;color:var(--text2);z-index:1;white-space:nowrap;"></div>
     <button onclick="swapAirports()"
       style="position:relative;width:36px;height:36px;border-radius:50%;border:0.5px solid var(--border2);background:var(--bg);color:var(--text2);cursor:pointer;padding:0;margin-top:0;z-index:1;display:flex;align-items:center;justify-content:center;">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block;flex-shrink:0;">
@@ -367,6 +339,35 @@
       </button>
     </div>
     <div id="arr-wx" style="display:none;border-radius:var(--radius);background:var(--bg2);padding:8px 10px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Fuel on board &amp; reserves</div>
+    <div class="row">
+      <label>Fuel on board (gal)</label>
+      <input type="number" id="fob" value="145" min="1" max="145" step="1">
+      <span class="hint">useable max 145</span>
+    </div>
+    <div class="row">
+      <label>Reserve fuel flow (gph)</label>
+      <input type="number" id="reserve-gph" value="33" min="5" max="60" step="0.5">
+      <span class="hint" id="reserve-gal-hint">= 33.0 gal (60 min)</span>
+    </div>
+    <div class="row">
+      <label>Reserve duration (min)</label>
+      <input type="number" id="reserve-mins" value="60" min="0" max="120" step="5">
+    </div>
+    <div class="row">
+      <label>Taxi fuel (gal)</label>
+      <input type="number" id="taxi-fuel" value="3" min="0" max="20" step="1">
+      <span class="hint">added to Min takeoff fuel</span>
+    </div>
+    <div class="row">
+      <label>Alternate distance (nm)</label>
+      <input type="number" id="alt-dist" value="0" min="0" max="300" step="5">
+      <span class="hint" id="alt-fuel-hint">= 0.0 gal</span>
+    </div>
+    <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 33 gph / 250 KIAS / 10,000 ft MSL (~288 KTAS, no wind). Taxi/contingency burned before takeoff (engine start + taxi to runway).</p>
   </div>
 
   <div class="card">
@@ -495,7 +496,7 @@
     <div class="chart-wrap">
       <canvas id="fuelChart"></canvas>
     </div>
-    <p class="note">Min takeoff fuel = trip + reserve + alternate + taxi/contingency. Fuel at landing = FOB minus trip fuel. Margin = fuel at landing minus reserve minus alternate. Descent distance capped at available leg distance after climb. Alternate at 33 gph / 250 KIAS / 10,000 ft ISA (~288 KTAS), no wind applied. Cruise FF scaled from M601 flat-rating model — update with actual POH data. All fuel in U.S. gallons.</p>
+    <p class="note">Min takeoff fuel = trip + reserve + alternate. Taxi fuel is deducted from FOB before trip planning. Fuel at landing = FOB minus trip fuel. Margin = fuel at landing minus reserve minus alternate. Descent distance capped at available leg distance after climb. Alternate at 33 gph / 250 KIAS / 10,000 ft ISA (~288 KTAS), no wind applied. Cruise FF scaled from M601 flat-rating model — update with actual POH data. All fuel in U.S. gallons.</p>
   </div>
 
 </div>
@@ -595,7 +596,8 @@ function update(){
   const tas=parseFloat(document.getElementById('tas').value)||280;
   const fob=parseFloat(document.getElementById('fob').value)||145;
   const reserveGph=parseFloat(document.getElementById('reserve-gph').value)||33;
-  const reserveMins=parseFloat(document.getElementById('reserve-mins').value)||60;
+  const reserveMinsRaw=document.getElementById('reserve-mins').value;
+  const reserveMins=reserveMinsRaw===''||isNaN(parseFloat(reserveMinsRaw))?60:parseFloat(reserveMinsRaw);
   const taxiFuel=parseFloat(document.getElementById('taxi-fuel').value)||0;
   const altDist=parseFloat(document.getElementById('alt-dist').value)||0;
 
@@ -626,8 +628,10 @@ function update(){
   document.getElementById('r-total').textContent=r.totalGal;
   document.getElementById('r-ttime').textContent=fmtTime(r.totalMins);
 
-  const minStart=+(r.totalGal+reserveGal+altFuelGal+taxiFuel).toFixed(1);
-  const landFuel=+(fob-r.totalGal).toFixed(1);
+  const fobAfterTaxi=fob-taxiFuel;
+  const fixedCosts=reserveGal+altFuelGal;
+  const minStart=+(r.totalGal+fixedCosts).toFixed(1);
+  const landFuel=+(fobAfterTaxi-r.totalGal).toFixed(1);
   const margin=+(landFuel-reserveGal-altFuelGal).toFixed(1);
 
   document.getElementById('r-reserve').textContent=reserveGal;
@@ -639,6 +643,25 @@ function update(){
 
   setMetricColor('arr-metric', landFuel<reserveGal+altFuelGal?'red':landFuel<reserveGal+altFuelGal+10?'amber':'green');
   setMetricColor('margin-metric', margin<0?'red':margin<10?'amber':'green');
+
+  var distSlider=document.getElementById('dist');
+  var maxDist=25;
+  if(fixedCosts<fobAfterTaxi){
+    var lo=25,hi=1400;
+    for(var iter=0;iter<20;iter++){
+      var mid=Math.round((lo+hi)/2);
+      var rT=compute(mid,alt,depElev,arrElev,ffClimb,ffCruise,ffDesc,climbRate,descRate,tas,ws,wd);
+      if(rT.totalGal+fixedCosts<=fobAfterTaxi){maxDist=mid;lo=mid+1;}else{hi=mid-1;}
+    }
+  }
+  maxDist=Math.max(25,Math.min(maxDist,1400));
+  if(parseInt(distSlider.max)!==maxDist) distSlider.max=maxDist;
+  if(dist>maxDist){
+    distSlider.value=maxDist;
+    document.getElementById('dist-out').textContent=maxDist+' nm';
+    window.update && window.update();
+    return;
+  }
 
   var mSummaryVal = document.getElementById('margin-summary-val');
   mSummaryVal.textContent = (margin >= 0 ? '+' : '') + margin + ' gal';
@@ -652,7 +675,8 @@ function update(){
 
   const warns=[];
   if(r.noAlt) warns.push('Climb + descent distance exceeds leg distance — cannot reach this altitude. Reduce target altitude.');
-  if(fob<minStart) warns.push('FOB ('+fob+' gal) is below minimum start fuel ('+minStart+' gal).');
+  if(fixedCosts>fobAfterTaxi) warns.push('Reserve + alternate ('+fixedCosts.toFixed(1)+' gal) exceeds fuel after taxi ('+fobAfterTaxi.toFixed(1)+' gal). Reduce reserve or alternate requirements.');
+  else if(fobAfterTaxi<minStart) warns.push('Fuel at takeoff ('+fobAfterTaxi.toFixed(1)+' gal) is below minimum takeoff fuel ('+minStart+' gal).');
   const wb=document.getElementById('warn-box');
   wb.style.display=warns.length?'block':'none';
   wb.textContent=warns.join(' | ');
@@ -730,6 +754,41 @@ window.update = update;
 } // end init()
 </script>
 <script>
+var airportCoords = { dep: null, arr: null };
+
+function haversineNm(lat1, lon1, lat2, lon2) {
+  var R = 3440.065; // Earth radius in nm
+  var dLat = (lat2 - lat1) * Math.PI / 180;
+  var dLon = (lon2 - lon1) * Math.PI / 180;
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function updateAirportDistance() {
+  var el = document.getElementById('airport-dist-display');
+  if (!el) return;
+  if (airportCoords.dep && airportCoords.arr) {
+    var nm = haversineNm(
+      airportCoords.dep.lat, airportCoords.dep.lon,
+      airportCoords.arr.lat, airportCoords.arr.lon
+    );
+    var rounded = Math.round(nm);
+    el.style.display = 'block';
+    el.textContent = rounded + ' nm';
+    // Auto-fill the distance slider
+    var slider = document.getElementById('dist');
+    if (slider) {
+      slider.value = Math.min(rounded, parseInt(slider.max));
+      document.getElementById('dist-out').textContent = slider.value + ' nm';
+      window.update && window.update();
+    }
+  } else {
+    el.style.display = 'none';
+  }
+}
+
 function fetchAirport(which) {
   var icaoEl = document.getElementById(which + '-icao');
   var elevEl = document.getElementById(which + '-elev');
@@ -763,6 +822,15 @@ function fetchAirport(which) {
     }
     var elev = station.elevation && station.elevation.feet;
     if (elev != null) { elevEl.value = Math.round(elev); window.update && window.update(); }
+    if (station.geometry && station.geometry.coordinates) {
+      airportCoords[which] = {
+        lon: station.geometry.coordinates[0],
+        lat: station.geometry.coordinates[1]
+      };
+    } else if (station.latitude && station.longitude) {
+      airportCoords[which] = { lat: station.latitude, lon: station.longitude };
+    }
+    updateAirportDistance();
     var html = '';
     var name = station.name || icao;
     html += '<div style="font-weight:500;color:var(--text);margin-bottom:4px;">' + icao + ' — ' + name + '</div>';
@@ -831,6 +899,10 @@ function swapAirports() {
   document.getElementById('arr-wx').innerHTML = depWx;
   document.getElementById('arr-wx').style.display = depWxVis;
 
+  var tmpCoords = airportCoords.dep;
+  airportCoords.dep = airportCoords.arr;
+  airportCoords.arr = tmpCoords;
+  updateAirportDistance();
   window.update && window.update();
 }
 </script>

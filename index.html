@@ -835,27 +835,20 @@ function swapAirports() {
 }
 </script>
 
-</body>
-</html>
-document.getElementById('dep-icao').addEventListener('keydown', function(e){ if(e.key==='Enter') fetchAirport('dep'); });
-document.getElementById('arr-icao').addEventListener('keydown', function(e){ if(e.key==='Enter') fetchAirport('arr'); });
-
-} // end init()
-</script>
 <script>
 function loadChart(src, cb) {
-  var s = document.createElement("script");
+  var s = document.createElement('script');
   s.src = src;
   s.onload = cb;
   s.onerror = function() {
-    var s2 = document.createElement("script");
-    s2.src = "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js";
+    var s2 = document.createElement('script');
+    s2.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js';
     s2.onload = cb;
     document.head.appendChild(s2);
   };
   document.head.appendChild(s);
 }
-loadChart("chart.umd.js", function() { init(); });
+loadChart('chart.umd.js', function() { init(); });
 </script>
 </body>
 </html>

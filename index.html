@@ -367,7 +367,7 @@
       <input type="number" id="alt-dist" value="0" min="0" max="300" step="5">
       <span class="hint" id="alt-fuel-hint">= 0.0 gal</span>
     </div>
-    <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 33 gph / 250 KIAS / 10,000 ft MSL (~288 KTAS, no wind). Taxi/contingency burned before takeoff (engine start + taxi to runway).</p>
+    <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 33 gph / 250 KIAS / 10,000 ft MSL (~291 KTAS, no wind). Taxi/contingency burned before takeoff (engine start + taxi to runway).</p>
   </div>
 
   <div class="card">
@@ -496,7 +496,7 @@
     <div class="chart-wrap">
       <canvas id="fuelChart"></canvas>
     </div>
-    <p class="note">Min takeoff fuel = trip + reserve + alternate. Taxi fuel is deducted from FOB before trip planning. Fuel at landing = FOB minus trip fuel. Margin = fuel at landing minus reserve minus alternate. Descent distance capped at available leg distance after climb. Alternate at 33 gph / 250 KIAS / 10,000 ft ISA (~288 KTAS), no wind applied. Cruise FF scaled from M601 flat-rating model — update with actual POH data. All fuel in U.S. gallons.</p>
+    <p class="note">Min takeoff fuel = trip + reserve + alternate. Taxi fuel is deducted from FOB before trip planning. Fuel at landing = FOB minus trip fuel. Margin = fuel at landing minus reserve minus alternate. Descent distance capped at available leg distance after climb. Alternate at 33 gph / 250 KIAS / 10,000 ft ISA (~291 KTAS), no wind applied. Cruise FF scaled from M601 flat-rating model — update with actual POH data. All fuel in U.S. gallons.</p>
   </div>
 
 </div>
@@ -508,13 +508,14 @@ const DEFAULTS = {
   'alt-dist': 0, 'dep-elev': 1000, 'arr-elev': 1000,
   dist: 500, alt: 17000, 'wind-spd': 0,
   'ff-climb': 37, 'ff-cruise': 28, 'ff-desc': 10,
-  'climb-rate': 1400, 'desc-rate': 1000, tas: 280
+  'climb-rate': 1400, 'desc-rate': 1000, tas: 280,
+  'dep-icao': 'KGYR', 'arr-icao': 'KAFO'
 };
 
 const alts = [5000,8000,10000,12000,14000,17000,19000,21000,23000,25000,28000];
 const altLabels = alts.map(a => a >= 18000 ? 'FL'+(a/100) : (a/1000)+'k');
 const ALT_CRUISE_GPH = 33;
-const ALT_KTAS = 288;
+const ALT_KTAS = 291;
 
 function isaTemp(altFt) {
   const altM = altFt * 0.3048;
@@ -535,10 +536,21 @@ function fmtTime(m){
   return h+'+'+String(t%60).padStart(2,'0');
 }
 function cruiseGphAtAlt(altFt,anchorAlt,anchorGph){
-  const diff=altFt-anchorAlt;
-  let f = altFt<=19000
-    ? 1-(diff/1000)*0.008
-    : 1-((19000-anchorAlt)/1000)*0.008+((altFt-19000)/1000)*0.018;
+  // Model: fuel burn decreases ~0.8%/1000ft up to FL190 (flat-rating benefit)
+  // then increases ~1.8%/1000ft above FL190 (ITT limit degrades efficiency)
+  // All relative to anchor altitude
+  var f;
+  if(altFt<=19000&&anchorAlt<=19000){
+    f=1-(altFt-anchorAlt)/1000*0.008;
+  } else if(altFt>19000&&anchorAlt>19000){
+    f=1-(altFt-anchorAlt)/1000*0.018;
+  } else if(altFt<=19000&&anchorAlt>19000){
+    // going down from above FL190 anchor to below FL190
+    f=1+(anchorAlt-19000)/1000*0.018+(19000-altFt)/1000*0.008;
+  } else {
+    // altFt>19000, anchorAlt<=19000: going up through FL190
+    f=1-(19000-anchorAlt)/1000*0.008-(altFt-19000)/1000*0.018;
+  }
   return anchorGph*Math.max(0.6,Math.min(1.5,f));
 }
 function getGS(tas,ws,wd){ return wd==='tail'?tas+ws:Math.max(50,tas-ws); }
@@ -549,33 +561,40 @@ function setMetricColor(id,color){
 
 function compute(distNm,cAlt,depElev,arrElev,climbGph,cruiseGph,descGph,climbRate,descRate,tas,ws,wd){
   const gs=getGS(tas,ws,wd);
+  const windFactor=gs/Math.max(1,tas); // ratio of ground speed to TAS
+  // Climb: time driven by fpm, air dist = TAS*0.55*time, ground dist = air dist * windFactor
   const climbDelta=Math.max(0,cAlt-depElev);
   const climbMins=climbDelta/climbRate;
   const climbGal=climbGph*(climbMins/60);
-  const climbDist=(tas*0.55)*(climbMins/60);
-  const remainAfterClimb=Math.max(0,distNm-climbDist);
+  const climbGroundDist=(tas*0.55)*(climbMins/60)*windFactor;
+  // Descent: time driven by fpm, distance from 260 KIAS->KTAS, ground dist = air dist * windFactor
   const descDelta=Math.max(0,cAlt-arrElev);
   const descMinsRaw=descDelta/descRate;
   const avgDesTas=avgDescentTas(cAlt,arrElev);
-  const descDistUncapped=avgDesTas*(descMinsRaw/60);
-  const descDist=Math.min(descDistUncapped,remainAfterClimb);
-  const descMins=descDist<descDistUncapped?descMinsRaw*(descDist/Math.max(0.01,descDistUncapped)):descMinsRaw;
+  const descAirDistUncapped=avgDesTas*(descMinsRaw/60);
+  const descGroundDistUncapped=descAirDistUncapped*windFactor;
+  const remainAfterClimb=Math.max(0,distNm-climbGroundDist);
+  const descGroundDist=Math.min(descGroundDistUncapped,remainAfterClimb);
+  const descMins=descGroundDist<descGroundDistUncapped?descMinsRaw*(descGroundDist/Math.max(0.01,descGroundDistUncapped)):descMinsRaw;
   const descGal=descGph*(descMins/60);
-  const cruiseDist=Math.max(0,distNm-climbDist-descDist);
-  const cruiseMins=cruiseDist>0?(cruiseDist/gs)*60:0;
+  const descAirDist=avgDesTas*(descMins/60); // for display purposes
+  // Cruise: remaining ground distance divided by ground speed
+  const cruiseGroundDist=Math.max(0,distNm-climbGroundDist-descGroundDist);
+  const cruiseMins=cruiseGroundDist>0?(cruiseGroundDist/gs)*60:0;
   const cruiseGal=cruiseGph*(cruiseMins/60);
   const totalGal=climbGal+cruiseGal+descGal;
+  const totalMins=climbMins+cruiseMins+descMins;
   return {
     climbGal:+climbGal.toFixed(1), climbMins:Math.round(climbMins),
-    climbDist:Math.round(climbDist), climbDelta:Math.round(climbDelta),
+    climbDist:Math.round(climbGroundDist), climbDelta:Math.round(climbDelta),
     cruiseGal:+cruiseGal.toFixed(1), cruiseMins:Math.round(cruiseMins),
-    cruiseDist:Math.round(cruiseDist), gs:Math.round(gs),
+    cruiseDist:Math.round(cruiseGroundDist), gs:Math.round(gs),
     descGal:+descGal.toFixed(1), descMins:Math.round(descMins),
-    descDist:Math.round(descDist), avgDesTas:Math.round(avgDesTas),
+    descDist:Math.round(descGroundDist), avgDesTas:Math.round(avgDesTas),
     totalGal:+totalGal.toFixed(1),
-    totalMins:climbMins+cruiseMins+descMins,
-    todNm:Math.round(descDist),
-    noAlt:(climbDist+descDist)>=distNm&&cruiseDist<=0
+    totalMins:totalMins,
+    todNm:Math.round(descGroundDist),
+    noAlt:(climbGroundDist+descGroundDist)>=distNm&&cruiseGroundDist<=0
   };
 }
 
@@ -682,10 +701,11 @@ function update(){
   wb.textContent=warns.join(' | ');
 
   const isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const chartDist=parseInt(document.getElementById('dist').value);
   const fuelData=alts.map(a=>{
     const gph=cruiseGphAtAlt(a,alt,ffCruise);
     const tasAdj=Math.max(160,tas*(1+(a-alt)/1000*0.012));
-    const res=compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,ws,wd);
+    const res=compute(chartDist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,ws,wd);
     return res.noAlt?null:res.totalGal;
   });
   const vf=fuelData.filter(f=>f!==null);
@@ -730,14 +750,14 @@ function resetDefaults(){
     if(!el) return;
     el.value=val;
   });
-  ['dep-icao','arr-icao'].forEach(function(id){
-    var el=document.getElementById(id);
-    if(el) el.value='';
-  });
   ['dep-wx','arr-wx'].forEach(function(id){
     var el=document.getElementById(id);
     if(el){ el.style.display='none'; el.innerHTML=''; }
   });
+  if(typeof airportCoords !== 'undefined'){
+    airportCoords.dep=null; airportCoords.arr=null;
+  }
+  if(typeof updateAirportDistance !== 'undefined') updateAirportDistance();
   update();
 }
 
@@ -777,10 +797,11 @@ function updateAirportDistance() {
     var rounded = Math.round(nm);
     el.style.display = 'block';
     el.textContent = rounded + ' nm';
-    // Auto-fill the distance slider
+    // Auto-fill the distance slider - set max high first, let update() apply the correct cap
     var slider = document.getElementById('dist');
     if (slider) {
-      slider.value = Math.min(rounded, parseInt(slider.max));
+      slider.max = 1400;
+      slider.value = Math.min(rounded, 1400);
       document.getElementById('dist-out').textContent = slider.value + ' nm';
       window.update && window.update();
     }

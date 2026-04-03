@@ -597,156 +597,159 @@ function compute(distNm,cAlt,depElev,arrElev,climbGph,cruiseGph,descGph,climbRat
     totalGal:+totalGal.toFixed(1),
     totalMins:totalMins,
     todNm:Math.round(descGroundDist),
-    noAlt:(climbGroundDist+descGroundDist)>=distNm&&cruiseGroundDist<=0
+    noAlt:climbGroundDist>=distNm
   };
 }
 
 let chart=null;
 
 function update(){
-  const dist=parseInt(document.getElementById('dist').value);
-  const alt=parseInt(document.getElementById('alt').value);
-  const depElev=parseFloat(document.getElementById('dep-elev').value)||0;
-  const arrElev=parseFloat(document.getElementById('arr-elev').value)||0;
-  const ws=parseFloat(document.getElementById('wind-spd').value)||0;
-  const wd=document.getElementById('wind-dir').value;
-  const ffClimb=parseFloat(document.getElementById('ff-climb').value)||37;
-  const ffCruise=parseFloat(document.getElementById('ff-cruise').value)||28;
-  const ffDesc=parseFloat(document.getElementById('ff-desc').value)||10;
-  const climbRate=parseFloat(document.getElementById('climb-rate').value)||1400;
-  const descRate=parseFloat(document.getElementById('desc-rate').value)||1000;
-  const tas=parseFloat(document.getElementById('tas').value)||280;
-  const fob=parseFloat(document.getElementById('fob').value)||145;
-  const reserveGph=parseFloat(document.getElementById('reserve-gph').value)||33;
-  const reserveMinsRaw=document.getElementById('reserve-mins').value;
-  const reserveMins=reserveMinsRaw===''||isNaN(parseFloat(reserveMinsRaw))?60:parseFloat(reserveMinsRaw);
-  const taxiFuel=parseFloat(document.getElementById('taxi-fuel').value)||0;
-  const altDist=parseFloat(document.getElementById('alt-dist').value)||0;
+  // ── Read all inputs ──────────────────────────────────────────────────────
+  const alt        = parseInt(document.getElementById('alt').value);
+  const depElev    = parseFloat(document.getElementById('dep-elev').value)||0;
+  const arrElev    = parseFloat(document.getElementById('arr-elev').value)||0;
+  const ws         = parseFloat(document.getElementById('wind-spd').value)||0;
+  const wd         = document.getElementById('wind-dir').value;
+  const ffClimb    = parseFloat(document.getElementById('ff-climb').value)||37;
+  const ffCruise   = parseFloat(document.getElementById('ff-cruise').value)||28;
+  const ffDesc     = parseFloat(document.getElementById('ff-desc').value)||10;
+  const climbRate  = parseFloat(document.getElementById('climb-rate').value)||1400;
+  const descRate   = parseFloat(document.getElementById('desc-rate').value)||1000;
+  const tas        = parseFloat(document.getElementById('tas').value)||280;
+  const fob        = parseFloat(document.getElementById('fob').value)||145;
+  const reserveGph = parseFloat(document.getElementById('reserve-gph').value)||33;
+  const reserveMinsRaw = document.getElementById('reserve-mins').value;
+  const reserveMins = (reserveMinsRaw===''||isNaN(parseFloat(reserveMinsRaw))) ? 60 : parseFloat(reserveMinsRaw);
+  const taxiFuel   = parseFloat(document.getElementById('taxi-fuel').value)||0;
+  const altDist    = parseFloat(document.getElementById('alt-dist').value)||0;
 
-  const reserveGal=+(reserveGph*(reserveMins/60)).toFixed(1);
-  const altFuelGal=+(ALT_CRUISE_GPH*(altDist/Math.max(1,ALT_KTAS))).toFixed(1);
+  const reserveGal  = +(reserveGph*(reserveMins/60)).toFixed(1);
+  const altFuelGal  = +(ALT_CRUISE_GPH*(altDist/Math.max(1,ALT_KTAS))).toFixed(1);
+  const fobAfterTaxi = fob - taxiFuel;
+  const fixedCosts  = reserveGal + altFuelGal;
 
-  document.getElementById('dist-out').textContent=dist+' nm';
-  document.getElementById('alt-out').textContent=alt.toLocaleString();
-  document.getElementById('gs-hint').textContent='GS: '+Math.round(getGS(tas,ws,wd))+' kts';
-  document.getElementById('reserve-gal-hint').textContent='= '+reserveGal+' gal ('+reserveMins+' min)';
-  document.getElementById('alt-fuel-hint').textContent='= '+altFuelGal+' gal';
-
-  const r=compute(dist,alt,depElev,arrElev,ffClimb,ffCruise,ffDesc,climbRate,descRate,tas,ws,wd);
-
-  document.getElementById('r-cfuel').textContent=r.climbGal;
-  document.getElementById('r-ctime').textContent=fmtTime(r.climbMins);
-  document.getElementById('r-cdist').textContent=r.climbDist;
-  document.getElementById('r-climb-delta').textContent=r.climbDelta.toLocaleString();
-  document.getElementById('r-crfuel').textContent=r.cruiseGal;
-  document.getElementById('r-crtime').textContent=fmtTime(r.cruiseMins);
-  document.getElementById('r-crdist').textContent=r.cruiseDist;
-  document.getElementById('r-gs').textContent=r.gs;
-  document.getElementById('r-gs2').textContent=r.gs;
-  document.getElementById('r-dfuel').textContent=r.descGal;
-  document.getElementById('r-dtime').textContent=fmtTime(r.descMins);
-  document.getElementById('r-ddist').textContent=r.descDist;
-  document.getElementById('r-desc-tas').textContent=r.avgDesTas;
-  document.getElementById('r-total').textContent=r.totalGal;
-  document.getElementById('r-ttime').textContent=fmtTime(r.totalMins);
-
-  const fobAfterTaxi=fob-taxiFuel;
-  const fixedCosts=reserveGal+altFuelGal;
-  const minStart=+(r.totalGal+fixedCosts).toFixed(1);
-  const landFuel=+(fobAfterTaxi-r.totalGal).toFixed(1);
-  const margin=+(landFuel-reserveGal-altFuelGal).toFixed(1);
-
-  document.getElementById('r-reserve').textContent=reserveGal;
-  document.getElementById('r-alt-fuel').textContent=altFuelGal;
-  document.getElementById('r-min-takeoff').textContent=minStart;
-  document.getElementById('r-tod').textContent=r.todNm;
-  document.getElementById('r-arr-fuel').textContent=landFuel;
-  document.getElementById('r-margin').textContent=margin;
-
-  setMetricColor('arr-metric', landFuel<reserveGal+altFuelGal?'red':landFuel<reserveGal+altFuelGal+10?'amber':'green');
-  setMetricColor('margin-metric', margin<0?'red':margin<10?'amber':'green');
-
-  var distSlider=document.getElementById('dist');
-  var maxDist=0;
-  if(fixedCosts<=fobAfterTaxi){
-    var lo=25,hi=1400;
-    for(var iter=0;iter<20;iter++){
-      var mid=Math.round((lo+hi)/2);
-      var rT=compute(mid,alt,depElev,arrElev,ffClimb,ffCruise,ffDesc,climbRate,descRate,tas,ws,wd);
-      if(rT.totalGal+fixedCosts<=fobAfterTaxi){maxDist=mid;lo=mid+1;}else{hi=mid-1;}
+  // ── Binary search for maxDist FIRST, before anything else ────────────────
+  var distSlider = document.getElementById('dist');
+  var maxDist = 0;
+  if(fixedCosts <= fobAfterTaxi){
+    var lo=25, hi=1400;
+    for(var i=0; i<20; i++){
+      var mid = Math.round((lo+hi)/2);
+      var rT  = compute(mid,alt,depElev,arrElev,ffClimb,ffCruise,ffDesc,climbRate,descRate,tas,ws,wd);
+      if(rT.totalGal+fixedCosts <= fobAfterTaxi){ maxDist=mid; lo=mid+1; } else { hi=mid-1; }
     }
   }
-  maxDist=Math.min(Math.max(maxDist,0),1400);
-  distSlider.max=Math.max(maxDist,25);
-  if(dist>maxDist){
-    var newDist=Math.max(maxDist,0);
-    distSlider.value=newDist;
-    document.getElementById('dist-out').textContent=newDist+' nm';
-    window.update && window.update();
-    return;
-  }
+  maxDist = Math.min(maxDist, 1400);
 
+  // Update slider max and clamp value — no recursion needed
+  if(maxDist > 0){
+    distSlider.max = maxDist;
+    if(parseInt(distSlider.value) > maxDist) distSlider.value = maxDist;
+  }
+  // else: don't touch slider at all — warning will appear below
+
+  // ── Read dist AFTER clamping ──────────────────────────────────────────────
+  const dist = parseInt(distSlider.value);
+
+  // ── Update hint displays ──────────────────────────────────────────────────
+  document.getElementById('dist-out').textContent = dist+' nm';
+  document.getElementById('alt-out').textContent  = alt.toLocaleString();
+  document.getElementById('gs-hint').textContent  = 'GS: '+Math.round(getGS(tas,ws,wd))+' kts';
+  document.getElementById('reserve-gal-hint').textContent = '= '+reserveGal+' gal ('+reserveMins+' min)';
+  document.getElementById('alt-fuel-hint').textContent    = '= '+altFuelGal+' gal';
+
+  // ── Compute flight ────────────────────────────────────────────────────────
+  const r = compute(dist,alt,depElev,arrElev,ffClimb,ffCruise,ffDesc,climbRate,descRate,tas,ws,wd);
+
+  document.getElementById('r-cfuel').textContent       = r.climbGal;
+  document.getElementById('r-ctime').textContent       = fmtTime(r.climbMins);
+  document.getElementById('r-cdist').textContent       = r.climbDist;
+  document.getElementById('r-climb-delta').textContent = r.climbDelta.toLocaleString();
+  document.getElementById('r-crfuel').textContent      = r.cruiseGal;
+  document.getElementById('r-crtime').textContent      = fmtTime(r.cruiseMins);
+  document.getElementById('r-crdist').textContent      = r.cruiseDist;
+  document.getElementById('r-gs').textContent          = r.gs;
+  document.getElementById('r-gs2').textContent         = r.gs;
+  document.getElementById('r-dfuel').textContent       = r.descGal;
+  document.getElementById('r-dtime').textContent       = fmtTime(r.descMins);
+  document.getElementById('r-ddist').textContent       = r.descDist;
+  document.getElementById('r-desc-tas').textContent    = r.avgDesTas;
+  document.getElementById('r-total').textContent       = r.totalGal;
+  document.getElementById('r-ttime').textContent       = fmtTime(r.totalMins);
+
+  // ── Fuel planning ─────────────────────────────────────────────────────────
+  const minStart = +(r.totalGal+fixedCosts).toFixed(1);
+  const landFuel = +(fobAfterTaxi-r.totalGal).toFixed(1);
+  const margin   = +(landFuel-reserveGal-altFuelGal).toFixed(1);
+
+  document.getElementById('r-reserve').textContent    = reserveGal;
+  document.getElementById('r-alt-fuel').textContent   = altFuelGal;
+  document.getElementById('r-min-takeoff').textContent = minStart;
+  document.getElementById('r-tod').textContent        = r.todNm;
+  document.getElementById('r-arr-fuel').textContent   = landFuel;
+  document.getElementById('r-margin').textContent     = margin;
+
+  setMetricColor('arr-metric',    landFuel<reserveGal+altFuelGal?'red':landFuel<reserveGal+altFuelGal+10?'amber':'green');
+  setMetricColor('margin-metric', margin<0?'red':margin<10?'amber':'green');
+
+  // ── Margin summary bar ────────────────────────────────────────────────────
   var mSummaryVal = document.getElementById('margin-summary-val');
-  mSummaryVal.textContent = (margin >= 0 ? '+' : '') + margin + ' gal';
-  if (margin < 0) {
-    mSummaryVal.style.color = '#A32D2D';
-  } else if (margin < 10) {
-    mSummaryVal.style.color = '#854F0B';
-  } else {
-    mSummaryVal.style.color = '#27500A';
-  }
+  mSummaryVal.textContent = (margin>=0?'+':'')+margin+' gal';
+  mSummaryVal.style.color = margin<0?'#A32D2D':margin<10?'#854F0B':'#27500A';
 
-  const warns=[];
-  if(r.noAlt) warns.push('Climb + descent distance exceeds leg distance — cannot reach this altitude. Reduce target altitude.');
-  if(fixedCosts>fobAfterTaxi) warns.push('Reserve + alternate ('+fixedCosts.toFixed(1)+' gal) exceeds fuel after taxi ('+fobAfterTaxi.toFixed(1)+' gal). Reduce reserve or alternate requirements.');
-  else if(fobAfterTaxi<minStart) warns.push('Fuel at takeoff ('+fobAfterTaxi.toFixed(1)+' gal) is below minimum takeoff fuel ('+minStart+' gal).');
-  const wb=document.getElementById('warn-box');
-  wb.style.display=warns.length?'block':'none';
-  wb.textContent=warns.join(' | ');
+  // ── Warnings ──────────────────────────────────────────────────────────────
+  const warns = [];
+  if(r.noAlt) warns.push('Climb distance exceeds leg distance — cannot reach this altitude. Reduce target altitude or increase leg distance.');
+  if(fixedCosts > fobAfterTaxi) warns.push('Reserve + alternate ('+fixedCosts.toFixed(1)+' gal) exceeds fuel after taxi ('+fobAfterTaxi.toFixed(1)+' gal).');
+  else if(minStart > fobAfterTaxi) warns.push('Fuel after taxi ('+fobAfterTaxi.toFixed(1)+' gal) is below min takeoff fuel ('+minStart+' gal).');
+  const wb = document.getElementById('warn-box');
+  wb.style.display = warns.length?'block':'none';
+  wb.textContent   = warns.join(' | ');
 
-  const isDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const chartDist=parseInt(document.getElementById('dist').value);
-  const fuelData=alts.map(a=>{
-    const gph=cruiseGphAtAlt(a,alt,ffCruise);
-    const tasAdj=Math.max(160,tas*(1+(a-alt)/1000*0.012));
-    const res=compute(chartDist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,ws,wd);
-    return res.noAlt?null:res.totalGal;
+  // ── Altitude comparison chart ─────────────────────────────────────────────
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const fuelData = alts.map(a=>{
+    const gph    = cruiseGphAtAlt(a,alt,ffCruise);
+    const tasAdj = Math.max(160, tas*(1+(a-alt)/1000*0.012));
+    const res    = compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,ws,wd);
+    return res.noAlt ? null : res.totalGal;
   });
-  const vf=fuelData.filter(f=>f!==null);
-  const minF=vf.length?Math.min(...vf):null;
-  const bgColors=alts.map((a,i)=>{
-    if(fuelData[i]===null) return isDark?'#444441':'#B4B2A9';
-    if(fuelData[i]===minF) return isDark?'#3B6D11':'#639922';
-    if(a===alt) return isDark?'#0C447C':'#185FA5';
+  const vf    = fuelData.filter(f=>f!==null);
+  const minF  = vf.length ? Math.min(...vf) : null;
+  const tc    = isDark?'#6b6a65':'#888780';
+  const gc    = isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+  const bgColors = alts.map((a,i)=>{
+    if(fuelData[i]===null)    return isDark?'#444441':'#B4B2A9';
+    if(fuelData[i]===minF)    return isDark?'#3B6D11':'#639922';
+    if(a===alt)               return isDark?'#0C447C':'#185FA5';
     return isDark?'#0c2d4a':'#B5D4F4';
   });
-  const dispData=fuelData.map(f=>f===null?0:f);
-  const tc=isDark?'#6b6a65':'#888780';
-  const gc=isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+  const dispData = fuelData.map(f=>f===null?0:f);
 
   if(chart){
-    chart.data.datasets[0].data=dispData;
-    chart.data.datasets[0].backgroundColor=bgColors;
-    chart.options.scales.x.ticks.color=tc;
-    chart.options.scales.y.ticks.color=tc;
-    chart.options.scales.y.title.color=tc;
-    chart.options.scales.y.grid.color=gc;
+    chart.data.datasets[0].data            = dispData;
+    chart.data.datasets[0].backgroundColor = bgColors;
+    chart.options.scales.x.ticks.color     = tc;
+    chart.options.scales.y.ticks.color     = tc;
+    chart.options.scales.y.title.color     = tc;
+    chart.options.scales.y.grid.color      = gc;
     chart.update('none');
   } else {
-    chart=new Chart(document.getElementById('fuelChart'),{
+    chart = new Chart(document.getElementById('fuelChart'),{
       type:'bar',
-      data:{labels:altLabels,datasets:[{data:dispData,backgroundColor:bgColors,borderRadius:3}]},
+      data:{labels:altLabels, datasets:[{data:dispData, backgroundColor:bgColors, borderRadius:3}]},
       options:{
-        responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.parsed.y===0?'cannot reach altitude':ctx.parsed.y+' gal'}}},
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y===0?'cannot reach altitude':ctx.parsed.y+' gal'}}},
         scales:{
-          x:{ticks:{font:{size:11},autoSkip:false,color:tc},grid:{display:false}},
-          y:{ticks:{font:{size:11},color:tc},grid:{color:gc},title:{display:true,text:'total fuel (gal)',font:{size:11},color:tc}}
+          x:{ticks:{font:{size:11}, autoSkip:false, color:tc}, grid:{display:false}},
+          y:{ticks:{font:{size:11}, color:tc}, grid:{color:gc}, title:{display:true, text:'total fuel (gal)', font:{size:11}, color:tc}}
         }
       }
     });
   }
 }
+
 
 function resetDefaults(){
   Object.entries(DEFAULTS).forEach(([id,val])=>{

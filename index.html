@@ -574,42 +574,61 @@ function setMetricColor(id,color){
   el.className='metric '+color;
 }
 
-function compute(distNm,cAlt,depElev,arrElev,climbGph,cruiseGph,descGph,climbRate,descRate,tas,ws,wd){
-  const gs=getGS(tas,ws,wd);
-  const windFactor=gs/Math.max(1,tas); // ratio of ground speed to TAS
-  // Climb: time driven by fpm, air dist = TAS*0.55*time, ground dist = air dist * windFactor
-  const climbDelta=Math.max(0,cAlt-depElev);
-  const climbMins=climbDelta/climbRate;
-  const climbGal=climbGph*(climbMins/60);
-  const climbGroundDist=(tas*0.55)*(climbMins/60)*windFactor;
-  // Descent: time driven by fpm, distance from 260 KIAS->KTAS, ground dist = air dist * windFactor
-  const descDelta=Math.max(0,cAlt-arrElev);
-  const descMinsRaw=descDelta/descRate;
-  const avgDesTas=avgDescentTas(cAlt,arrElev);
-  const descAirDistUncapped=avgDesTas*(descMinsRaw/60);
-  const descGroundDistUncapped=descAirDistUncapped*windFactor;
-  const remainAfterClimb=Math.max(0,distNm-climbGroundDist);
-  const descGroundDist=Math.min(descGroundDistUncapped,remainAfterClimb);
-  const descMins=descGroundDist<descGroundDistUncapped?descMinsRaw*(descGroundDist/Math.max(0.01,descGroundDistUncapped)):descMinsRaw;
-  const descGal=descGph*(descMins/60);
-  const descAirDist=avgDesTas*(descMins/60); // for display purposes
-  // Cruise: remaining ground distance divided by ground speed
-  const cruiseGroundDist=Math.max(0,distNm-climbGroundDist-descGroundDist);
-  const cruiseMins=cruiseGroundDist>0?(cruiseGroundDist/gs)*60:0;
-  const cruiseGal=cruiseGph*(cruiseMins/60);
-  const totalGal=climbGal+cruiseGal+descGal;
-  const totalMins=climbMins+cruiseMins+descMins;
+function compute(distNm, cAlt, depElev, arrElev, climbGph, cruiseGph, descGph,
+                 climbRate, descRate, tas, ws, wd) {
+  // Ground speed and wind component at cruise altitude
+  const gs = getGS(tas, ws, wd);
+  // ws_signed: positive = headwind (reduces GS), negative = tailwind (increases GS)
+  const ws_signed = (wd === 'tail') ? -ws : ws;
+
+  // ── Climb ────────────────────────────────────────────────────────────────
+  // Climb airspeed ~55% of cruise TAS; wind applies directly to ground track
+  const climbDelta    = Math.max(0, cAlt - depElev);
+  const climbMins     = climbDelta / climbRate;
+  const climbGal      = climbGph * (climbMins / 60);
+  const climbAirspeed = tas * 0.55;
+  const climbGS       = Math.max(10, climbAirspeed - ws_signed);
+  const climbGroundDist = climbGS * (climbMins / 60);
+
+  // ── Descent ──────────────────────────────────────────────────────────────
+  const descDelta     = Math.max(0, cAlt - arrElev);
+  const descMinsRaw   = descDelta / descRate;
+  const avgDesTas     = avgDescentTas(cAlt, arrElev);
+  const descGS        = Math.max(10, avgDesTas - ws_signed);
+  const descAirDistUncapped    = avgDesTas * (descMinsRaw / 60);
+  const descGroundDistUncapped = descGS    * (descMinsRaw / 60);
+  const remainAfterClimb       = Math.max(0, distNm - climbGroundDist);
+  const descGroundDist = Math.min(descGroundDistUncapped, remainAfterClimb);
+  const descMins       = descGroundDist < descGroundDistUncapped
+    ? descMinsRaw * (descGroundDist / Math.max(0.01, descGroundDistUncapped))
+    : descMinsRaw;
+  const descGal = descGph * (descMins / 60);
+
+  // ── Cruise ───────────────────────────────────────────────────────────────
+  const cruiseGroundDist = Math.max(0, distNm - climbGroundDist - descGroundDist);
+  const cruiseMins       = cruiseGroundDist > 0 ? (cruiseGroundDist / gs) * 60 : 0;
+  const cruiseGal        = cruiseGph * (cruiseMins / 60);
+
+  const totalGal  = climbGal + cruiseGal + descGal;
+  const totalMins = climbMins + cruiseMins + descMins;
+
   return {
-    climbGal:+climbGal.toFixed(1), climbMins:Math.round(climbMins),
-    climbDist:Math.round(climbGroundDist), climbDelta:Math.round(climbDelta),
-    cruiseGal:+cruiseGal.toFixed(1), cruiseMins:Math.round(cruiseMins),
-    cruiseDist:Math.round(cruiseGroundDist), gs:Math.round(gs),
-    descGal:+descGal.toFixed(1), descMins:Math.round(descMins),
-    descDist:Math.round(descGroundDist), avgDesTas:Math.round(avgDesTas),
-    totalGal:+totalGal.toFixed(1),
-    totalMins:totalMins,
-    todNm:Math.round(descGroundDist),
-    noAlt:climbGroundDist>=distNm
+    climbGal:   +climbGal.toFixed(1),
+    climbMins:  Math.round(climbMins),
+    climbDist:  Math.round(climbGroundDist),
+    climbDelta: Math.round(climbDelta),
+    cruiseGal:  +cruiseGal.toFixed(1),
+    cruiseMins: Math.round(cruiseMins),
+    cruiseDist: Math.round(cruiseGroundDist),
+    gs:         Math.round(gs),
+    descGal:    +descGal.toFixed(1),
+    descMins:   Math.round(descMins),
+    descDist:   Math.round(descGroundDist),
+    avgDesTas:  Math.round(avgDesTas),
+    totalGal:   +totalGal.toFixed(1),
+    totalMins:  totalMins,
+    todNm:      Math.round(descGroundDist),
+    noAlt:      climbGroundDist >= distNm
   };
 }
 
@@ -720,9 +739,11 @@ function update(){
 
   // ── Altitude comparison chart ─────────────────────────────────────────────
   const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  // Derive cruise KIAS from current TAS at current alt, then compute ISA TAS at each chart alt
+  const cruiseKias = tas * Math.sqrt(densityRatio(alt));
   const fuelData = alts.map(a=>{
     const gph    = cruiseGphAtAlt(a,alt,ffCruise);
-    const tasAdj = Math.max(160, tas*(1+(a-alt)/1000*0.012));
+    const tasAdj = Math.max(160, cruiseKias / Math.sqrt(densityRatio(a)));
     const res    = compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,ws,wd);
     return res.noAlt ? null : res.totalGal;
   });

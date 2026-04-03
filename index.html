@@ -391,13 +391,25 @@
 
   <div class="card">
     <div class="section-label">Winds aloft at cruise altitude</div>
-    <div class="wind-row">
-      <label>Wind speed (kts)</label>
-      <input type="number" id="wind-spd" value="0" min="0" max="150" step="1">
-      <select id="wind-dir">
-        <option value="head">Headwind</option>
-        <option value="tail">Tailwind</option>
-      </select>
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.75rem;">
+      <div style="flex:1;">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Wind speed (kts)</div>
+        <input type="number" id="wind-spd" value="0" min="0" max="200" step="1" oninput="update()">
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Direction</div>
+        <select id="wind-dir" onchange="update()" style="width:100%;height:38px;padding:0 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+          <option value="head">Headwind</option>
+          <option value="tail">Tailwind</option>
+        </select>
+      </div>
+      <button id="winds-fetch-btn" onclick="fetchWindsAloft()"
+        style="flex-shrink:0;font-size:13px;padding:7px 14px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;height:38px;">
+        Fetch
+      </button>
+    </div>
+    <div id="winds-wx" style="display:none;border-radius:var(--radius);background:var(--bg2);padding:8px 10px;font-size:12px;color:var(--text2);line-height:1.8;"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:0.5rem;">
       <span class="gs-badge" id="gs-hint">GS: 280 kts</span>
     </div>
   </div>
@@ -907,6 +919,228 @@ function fetchAirport(which) {
     btn.textContent = 'Fetch'; btn.disabled = false;
   });
 }
+
+// ── Pressure levels: hPa → approx ft MSL ─────────────────────────────────────
+var WIND_LEVELS = [
+  {hPa:850,ft:5000},{hPa:800,ft:6200},{hPa:700,ft:9800},{hPa:600,ft:13800},
+  {hPa:500,ft:18400},{hPa:400,ft:23600},{hPa:300,ft:30200},{hPa:250,ft:34100},{hPa:200,ft:38700}
+];
+
+function windUV(spd, dir) {
+  // Convert speed+direction to u/v components (u=east, v=north)
+  var r = dir * Math.PI / 180;
+  return { u: -spd*Math.sin(r), v: -spd*Math.cos(r) };
+}
+
+function uvToWind(u, v) {
+  var spd = Math.sqrt(u*u+v*v);
+  var dir = ((Math.atan2(-u,-v)*180/Math.PI)+360)%360;
+  return { spd: spd, dir: dir };
+}
+
+function interpWindAtAlt(altFt, windData) {
+  // windData: [{ft, spd, dir}, ...] sorted by ft ascending
+  // Interpolate u/v linearly between bracketing levels
+  if (!windData || windData.length === 0) return {spd:0, dir:0};
+  if (altFt <= windData[0].ft) return windData[0];
+  if (altFt >= windData[windData.length-1].ft) return windData[windData.length-1];
+  for (var i=0; i<windData.length-1; i++) {
+    var lo = windData[i], hi = windData[i+1];
+    if (altFt >= lo.ft && altFt <= hi.ft) {
+      var t = (altFt-lo.ft)/(hi.ft-lo.ft);
+      var uvLo = windUV(lo.spd, lo.dir);
+      var uvHi = windUV(hi.spd, hi.dir);
+      return uvToWind(uvLo.u+t*(uvHi.u-uvLo.u), uvLo.v+t*(uvHi.v-uvLo.v));
+    }
+  }
+  return windData[windData.length-1];
+}
+
+function interpWindAtFrac(frac, depData, midData, arrData) {
+  // Spatial interpolation: frac=0→dep, frac=0.5→mid, frac=1→arr
+  // Piecewise linear between dep→mid and mid→arr
+  var a, b, t;
+  if (frac <= 0.5) {
+    a = depData; b = midData; t = frac/0.5;
+  } else {
+    a = midData; b = arrData; t = (frac-0.5)/0.5;
+  }
+  // Merge by ft — interpolate same levels
+  return a.map(function(lo, i) {
+    var hi = b[i];
+    var uvA = windUV(lo.spd, lo.dir);
+    var uvB = windUV(hi.spd, hi.dir);
+    var w = uvToWind(uvA.u+t*(uvB.u-uvA.u), uvA.v+t*(uvB.v-uvA.v));
+    return {ft: lo.ft, spd: w.spd, dir: w.dir};
+  });
+}
+
+function headwindComp(spd, dir, routeHdg) {
+  return spd * Math.cos((dir-routeHdg)*Math.PI/180);
+}
+
+function buildOpenMeteoUrl(lat, lon) {
+  var hPas = WIND_LEVELS.map(function(l){return l.hPa;});
+  var wsV = hPas.map(function(h){return 'wind_speed_'+h+'hPa';}).join(',');
+  var wdV = hPas.map(function(h){return 'wind_direction_'+h+'hPa';}).join(',');
+  return 'https://api.open-meteo.com/v1/forecast'
+    +'?latitude='+lat.toFixed(4)+'&longitude='+lon.toFixed(4)
+    +'&hourly='+wsV+','+wdV
+    +'&wind_speed_unit=kn&forecast_hours=2&models=gfs_seamless';
+}
+
+function parseOpenMeteoResponse(data) {
+  // Returns [{ft, spd, dir}, ...] sorted ft ascending, for index 0 (current hour)
+  var h = data.hourly;
+  if (!h) return [];
+  return WIND_LEVELS.map(function(lev) {
+    var spd = h['wind_speed_'+lev.hPa+'hPa'][0];
+    var dir = h['wind_direction_'+lev.hPa+'hPa'][0];
+    return {ft: lev.ft, spd: spd||0, dir: dir||0};
+  }).sort(function(a,b){return a.ft-b.ft;});
+}
+
+function compassDir(deg) {
+  var dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg/22.5)%16];
+}
+
+function fetchWindsAloft() {
+  var btn  = document.getElementById('winds-fetch-btn');
+  var wxEl = document.getElementById('winds-wx');
+
+  if (!airportCoords.dep || !airportCoords.arr) {
+    wxEl.style.display = 'block';
+    wxEl.innerHTML = '<span style="color:#A32D2D;">Fetch both airports first.</span>';
+    return;
+  }
+
+  btn.textContent = '...';
+  btn.disabled = true;
+
+  var lat1=airportCoords.dep.lat, lon1=airportCoords.dep.lon;
+  var lat2=airportCoords.arr.lat, lon2=airportCoords.arr.lon;
+  var midLat=(lat1+lat2)/2, midLon=(lon1+lon2)/2;
+
+  // Route true course
+  var dLon=(lon2-lon1)*Math.PI/180;
+  var rl1=lat1*Math.PI/180, rl2=lat2*Math.PI/180;
+  var routeHdg=((Math.atan2(Math.sin(dLon)*Math.cos(rl2),
+    Math.cos(rl1)*Math.sin(rl2)-Math.sin(rl1)*Math.cos(rl2)*Math.cos(dLon))*180/Math.PI)+360)%360;
+
+  // Fetch winds at dep, midpoint, arr in parallel
+  Promise.all([
+    fetch(buildOpenMeteoUrl(lat1,lon1)).then(function(r){return r.json();}),
+    fetch(buildOpenMeteoUrl(midLat,midLon)).then(function(r){return r.json();}),
+    fetch(buildOpenMeteoUrl(lat2,lon2)).then(function(r){return r.json();})
+  ]).then(function(results) {
+    var depData = parseOpenMeteoResponse(results[0]);
+    var midData = parseOpenMeteoResponse(results[1]);
+    var arrData = parseOpenMeteoResponse(results[2]);
+
+    if (depData.length === 0) throw new Error('No data');
+
+    // Read flight parameters
+    var alt       = parseInt(document.getElementById('alt').value)||17000;
+    var depElev   = parseFloat(document.getElementById('dep-elev').value)||0;
+    var arrElev   = parseFloat(document.getElementById('arr-elev').value)||0;
+    var tas       = parseFloat(document.getElementById('tas').value)||280;
+    var dist      = parseInt(document.getElementById('dist').value)||500;
+    var climbRate = parseFloat(document.getElementById('climb-rate').value)||1400;
+    var descRate  = parseFloat(document.getElementById('desc-rate').value)||1000;
+
+    // Compute climb/cruise/descent distances (simplified, wind-neutral for waypoint geometry)
+    var climbDelta = Math.max(0, alt-depElev);
+    var climbMins  = climbDelta/climbRate;
+    var climbDist  = (tas*0.55)*(climbMins/60);
+    var descDelta  = Math.max(0, alt-arrElev);
+    var descMins   = descDelta/descRate;
+    var descDistUncapped = (tas*0.85)*(descMins/60);
+    var remainAfterClimb = Math.max(0, dist-climbDist);
+    var descDist   = Math.min(descDistUncapped, remainAfterClimb);
+    var cruiseDist = Math.max(0, dist-climbDist-descDist);
+
+    // Build waypoints: climb mid, 5 cruise, descent mid
+    var waypoints = [];
+
+    if (climbDist > 0) {
+      var climbMidFrac = (climbDist/2) / dist;
+      var climbMidAlt  = depElev + climbDelta/2;
+      waypoints.push({name:'Climb mid', frac:climbMidFrac, alt:climbMidAlt});
+    }
+
+    if (cruiseDist > 0) {
+      for (var i=0; i<5; i++) {
+        var fracInCruise = (i+0.5)/5;
+        var distFromDep  = climbDist + cruiseDist*fracInCruise;
+        waypoints.push({name:'Cruise '+(i+1), frac:distFromDep/dist, alt:alt});
+      }
+    } else {
+      waypoints.push({name:'Mid', frac:0.5, alt:(depElev+alt)/2});
+    }
+
+    if (descDist > 0) {
+      var descStartFrac = (climbDist+cruiseDist)/dist;
+      var descMidFrac   = descStartFrac + (descDist/2)/dist;
+      var descMidAlt    = arrElev + descDelta/2;
+      waypoints.push({name:'Desc mid', frac:descMidFrac, alt:descMidAlt});
+    }
+
+    // For each waypoint: spatially interpolate winds then interpolate by altitude
+    var totalHW = 0;
+    var details = [];
+    waypoints.forEach(function(wp) {
+      var spatialData = interpWindAtFrac(wp.frac, depData, midData, arrData);
+      var w = interpWindAtAlt(wp.alt, spatialData);
+      var hw = headwindComp(w.spd, w.dir, routeHdg);
+      totalHW += hw;
+      details.push({name:wp.name, alt:wp.alt, spd:w.spd, dir:w.dir, hw:hw});
+    });
+
+    var avgHW  = totalHW / waypoints.length;
+    var avgSpd = Math.abs(Math.round(avgHW));
+    var avgDir = avgHW >= 0 ? 'head' : 'tail';
+
+    // Auto-fill wind inputs
+    document.getElementById('wind-spd').value = avgSpd;
+    document.getElementById('wind-dir').value  = avgDir;
+    window.update && window.update();
+
+    // Build display
+    var html = '<div style="font-weight:500;color:var(--text);margin-bottom:6px;">'
+      +'Route '+Math.round(routeHdg)+'° true · avg '
+      +avgSpd+' kts '+(avgHW>=0?'headwind':'tailwind')
+      +'</div>';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
+    html += '<tr style="color:var(--text3);"><td style="padding:1px 4px 1px 0">Waypoint</td>'
+      +'<td style="padding:1px 4px">Alt</td><td style="padding:1px 4px">Wind</td>'
+      +'<td style="padding:1px 4px">Component</td></tr>';
+    details.forEach(function(d) {
+      var hwStr = (d.hw>=0?'+':'')+Math.round(d.hw)+' kts';
+      var col   = d.hw>=0?'#A32D2D':'#27500A';
+      html += '<tr><td style="padding:1px 4px 1px 0;color:var(--text2)">'+d.name+'</td>'
+        +'<td style="padding:1px 4px">'+Math.round(d.alt/100)*100+'</td>'
+        +'<td style="padding:1px 4px">'+Math.round(d.spd)+' @'+compassDir(d.dir)+'</td>'
+        +'<td style="padding:1px 4px;color:'+col+'">'+hwStr+'</td></tr>';
+    });
+    html += '</table>';
+    html += '<div style="color:var(--text3);font-size:10px;margin-top:5px;">'
+      +'GFS via Open-Meteo · '+waypoints.length+' waypoints · auto-filled '
+      +avgSpd+' kts '+avgDir+'wind</div>';
+
+    wxEl.innerHTML = html;
+    wxEl.style.display = 'block';
+    btn.textContent = 'Fetch';
+    btn.disabled = false;
+
+  }).catch(function(err) {
+    wxEl.style.display = 'block';
+    wxEl.innerHTML = '<span style="color:#A32D2D;">Winds fetch failed — check connection</span>';
+    btn.textContent = 'Fetch';
+    btn.disabled = false;
+  });
+}
+
 
 function swapAirports() {
   var depIcao = document.getElementById('dep-icao').value;

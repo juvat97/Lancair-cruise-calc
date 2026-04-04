@@ -1387,6 +1387,8 @@ function showTab(name) {
   document.getElementById('tab-perf').style.display = name==='perf' ? 'block' : 'none';
   var btn = document.getElementById('tab-perf-btn');
   if (btn) btn.classList.toggle('active', name==='perf');
+  var resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) resetBtn.style.display = name==='perf' ? 'none' : '';
   if (name==='perf') refreshPerfPage();
 }
 

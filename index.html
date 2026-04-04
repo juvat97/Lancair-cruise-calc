@@ -748,9 +748,10 @@ function update(){
   const minF  = vf.length ? Math.min(...vf) : null;
   const tc    = isDark?'#6b6a65':'#888780';
   const gc    = isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+  const nearestAlt = alts.reduce((prev,cur)=>Math.abs(cur-alt)<Math.abs(prev-alt)?cur:prev);
   const bgColors = alts.map((a,i)=>{
     if(fuelData[i]===null)    return isDark?'#444441':'#B4B2A9';
-    if(a===alt)               return isDark?'#0C447C':'#185FA5';
+    if(a===nearestAlt)        return isDark?'#0C447C':'#185FA5';
     if(fuelData[i]===minF)    return isDark?'#3B6D11':'#639922';
     return isDark?'#0c2d4a':'#B5D4F4';
   });
@@ -889,6 +890,7 @@ function fetchAirport(which) {
       airportCoords[which] = { lat: station.latitude, lon: station.longitude };
     }
     updateAirportDistance();
+    fetchWindsAloft();
     var html = '';
     var name = station.name || icao;
     html += '<div style="font-weight:500;color:var(--text);margin-bottom:4px;">' + icao + ' — ' + name + '</div>';
@@ -1000,13 +1002,14 @@ function interpWindAtFrac(frac, depData, midData, arrData) {
   } else {
     a = midData; b = arrData; t = (frac-0.5)/0.5;
   }
-  // Merge by ft — interpolate same levels
+  // Merge by ft — interpolate wind and temperature
   return a.map(function(lo, i) {
     var hi = b[i];
     var uvA = windUV(lo.spd, lo.dir);
     var uvB = windUV(hi.spd, hi.dir);
     var w = uvToWind(uvA.u+t*(uvB.u-uvA.u), uvA.v+t*(uvB.v-uvA.v));
-    return {ft: lo.ft, spd: w.spd, dir: w.dir};
+    var temp = (lo.temp != null && hi.temp != null) ? lo.temp + t*(hi.temp-lo.temp) : (lo.temp != null ? lo.temp : hi.temp);
+    return {ft: lo.ft, spd: w.spd, dir: w.dir, temp: temp};
   });
 }
 
@@ -1047,13 +1050,11 @@ function fetchWindsAloft() {
   var wxEl = document.getElementById('winds-wx');
 
   if (!airportCoords.dep || !airportCoords.arr) {
-    wxEl.style.display = 'block';
-    wxEl.innerHTML = '<span style="color:#A32D2D;">Fetch both airports first.</span>';
+    // Both airports not yet fetched — silently do nothing (auto-trigger)
     return;
   }
 
-  btn.textContent = '...';
-  btn.disabled = true;
+  if (btn) { btn.textContent = '...'; btn.disabled = true; }
 
   var lat1=airportCoords.dep.lat, lon1=airportCoords.dep.lon;
   var lat2=airportCoords.arr.lat, lon2=airportCoords.arr.lon;
@@ -1192,14 +1193,12 @@ function fetchWindsAloft() {
 
     wxEl.innerHTML = html;
     wxEl.style.display = 'block';
-    btn.textContent = 'Fetch';
-    btn.disabled = false;
+    if (btn) { btn.textContent = 'Fetch'; btn.disabled = false; }
 
   }).catch(function(err) {
     wxEl.style.display = 'block';
     wxEl.innerHTML = '<span style="color:#A32D2D;">Winds fetch failed — check connection</span>';
-    btn.textContent = 'Fetch';
-    btn.disabled = false;
+    if (btn) { btn.textContent = 'Fetch'; btn.disabled = false; }
   });
 }
 
@@ -1227,6 +1226,7 @@ function swapAirports() {
   airportCoords.dep = airportCoords.arr;
   airportCoords.arr = tmpCoords;
   updateAirportDistance();
+  fetchWindsAloft();
   window.update && window.update();
 }
 </script>

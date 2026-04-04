@@ -736,35 +736,11 @@ function update(){
   const fobAfterTaxi = fob - taxiFuel;
   const fixedCosts  = reserveGal + altFuelGal;
 
-  // ── Apply real performance data to fields and resolve effective values ─────
+  // ── TAS and FF come directly from the fields — no DOM writes here ──────────
+  // applyRealPerfToFields() handles auto-filling from real data on alt changes
   var currentIsaDev = (cachedWindsData && cachedWindsData.isaDev !== null) ? cachedWindsData.isaDev : 0;
-  var tasEl = document.getElementById('tas');
-  var ffEl  = document.getElementById('ff-cruise');
-  // tasEff/ffCruiseEff: start from what user has in the field right now
-  var tasEff      = tas;
-  var ffCruiseEff = ffCruise;
-  if (typeof getRealPerfAtAlt !== 'undefined') {
-    var realPerf = getRealPerfAtAlt(alt, currentIsaDev);
-    if (realPerf) {
-      if (!tasEl.dataset.userEdited) {
-        tasEff = realPerf.tas;
-        tasEl.value = Math.round(realPerf.tas);
-      }
-      if (!ffEl.dataset.userEdited) {
-        ffCruiseEff = realPerf.ff;
-        ffEl.value = realPerf.ff.toFixed(1);
-      }
-    } else {
-      if (!tasEl.dataset.userEdited) {
-        tasEff = DEFAULTS.tas;
-        tasEl.value = DEFAULTS.tas;
-      }
-      if (!ffEl.dataset.userEdited) {
-        ffCruiseEff = DEFAULTS['ff-cruise'];
-        ffEl.value = DEFAULTS['ff-cruise'];
-      }
-    }
-  }
+  const tasEff      = tas;
+  const ffCruiseEff = ffCruise;
 
   // ── Binary search for maxDist using effective FF/TAS ─────────────────────
   var distSlider = document.getElementById('dist');
@@ -945,9 +921,14 @@ document.getElementById('ff-cruise').addEventListener('input', function(){
   this.dataset.userEdited = '1';
   update();
 });
+// Alt slider: apply real data to fields first, then update
+document.getElementById('alt').addEventListener('input', function(){
+  applyRealPerfToFields(parseInt(this.value));
+  update();
+});
 // All other inputs
 document.querySelectorAll('input,select').forEach(function(el){
-  if (el.id !== 'tas' && el.id !== 'ff-cruise') {
+  if (el.id !== 'tas' && el.id !== 'ff-cruise' && el.id !== 'alt') {
     el.addEventListener('input', update);
   }
 });
@@ -958,6 +939,25 @@ document.getElementById('dep-icao').addEventListener('keydown', function(e){ if(
 document.getElementById('arr-icao').addEventListener('keydown', function(e){ if(e.key==='Enter') fetchAirport('arr'); });
 
 window.update = update;
+window.applyRealPerfToFields = applyRealPerfToFields;
+
+function applyRealPerfToFields(altFt) {
+  var tasEl = document.getElementById('tas');
+  var ffEl  = document.getElementById('ff-cruise');
+  if (!tasEl || !ffEl) return;
+  var isaDev = (typeof cachedWindsData !== 'undefined' && cachedWindsData && cachedWindsData.isaDev !== null)
+    ? cachedWindsData.isaDev : 0;
+  if (typeof getRealPerfAtAlt !== 'undefined') {
+    var rp = getRealPerfAtAlt(altFt, isaDev);
+    if (rp) {
+      if (!tasEl.dataset.userEdited) tasEl.value = Math.round(rp.tas);
+      if (!ffEl.dataset.userEdited)  ffEl.value  = rp.ff.toFixed(1);
+    } else {
+      if (!tasEl.dataset.userEdited) tasEl.value = DEFAULTS.tas;
+      if (!ffEl.dataset.userEdited)  ffEl.value  = DEFAULTS['ff-cruise'];
+    }
+  }
+}
 
 } // end init()
 </script>

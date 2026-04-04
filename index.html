@@ -739,46 +739,17 @@ function update(){
   const fixedCosts  = reserveGal + altFuelGal;
 
   // ── Resolve real performance overrides FIRST ────────────────────────────
+  // Priority: manual override > real data > value from input field
+  // Never write to DOM inputs here — that causes feedback loops
   var currentIsaDev = (cachedWindsData && cachedWindsData.isaDev !== null) ? cachedWindsData.isaDev : 0;
-  // Resolve TAS and FF: manual override > real data > default
-  var tasEff = tas;
-  var ffCruiseEff = ffCruise;
-  if (typeof getRealPerfAtAlt !== 'undefined') {
-    var realPerf = getRealPerfAtAlt(alt, currentIsaDev);
-    if (realPerf) {
-      // Apply real data to input fields and effective values
-      var tasInput = document.getElementById('tas');
-      var ffInput  = document.getElementById('ff-cruise');
-      // Only auto-fill if user hasn't manually overridden
-      if (tasOverride === null) {
-        tasEff = realPerf.tas;
-        if (tasInput) tasInput.value = Math.round(realPerf.tas);
-      } else {
-        tasEff = tasOverride;
-      }
-      if (ffOverride === null) {
-        ffCruiseEff = realPerf.ff;
-        if (ffInput) ffInput.value = realPerf.ff.toFixed(1);
-      } else {
-        ffCruiseEff = ffOverride;
-      }
-    } else {
-      // No real data: use manual override if set, otherwise reset to default
-      var tasInput = document.getElementById('tas');
-      var ffInput  = document.getElementById('ff-cruise');
-      if (tasOverride !== null) {
-        tasEff = tasOverride;
-        if (tasInput) tasInput.value = tasOverride;
-      } else {
-        tasEff = DEFAULTS.tas;
-        if (tasInput) tasInput.value = DEFAULTS.tas;
-      }
-      if (ffOverride !== null) {
-        ffCruiseEff = ffOverride;
-        if (ffInput) ffInput.value = ffOverride.toFixed(1);
-      } else {
-        ffCruiseEff = DEFAULTS['ff-cruise'];
-        if (ffInput) ffInput.value = DEFAULTS['ff-cruise'];
+  var tasEff = (tasOverride !== null) ? tasOverride : tas;
+  var ffCruiseEff = (ffOverride !== null) ? ffOverride : ffCruise;
+  if (tasOverride === null || ffOverride === null) {
+    if (typeof getRealPerfAtAlt !== 'undefined') {
+      var realPerf = getRealPerfAtAlt(alt, currentIsaDev);
+      if (realPerf) {
+        if (tasOverride === null) tasEff = realPerf.tas;
+        if (ffOverride  === null) ffCruiseEff = realPerf.ff;
       }
     }
   }
@@ -952,14 +923,18 @@ function resetDefaults(){
 
 document.getElementById('reset-btn').addEventListener('click',resetDefaults);
 document.querySelectorAll('input,select').forEach(el=>el.addEventListener('input',update));
-// When user types in TAS or FF, store as manual override
+// Store manual override only when user is actively focused on the field
 document.getElementById('tas').addEventListener('input', function(){
-  var v = parseFloat(this.value);
-  if (!isNaN(v)) tasOverride = v;
+  if (document.activeElement === this) {
+    var v = parseFloat(this.value);
+    if (!isNaN(v)) tasOverride = v;
+  }
 });
 document.getElementById('ff-cruise').addEventListener('input', function(){
-  var v = parseFloat(this.value);
-  if (!isNaN(v)) ffOverride = v;
+  if (document.activeElement === this) {
+    var v = parseFloat(this.value);
+    if (!isNaN(v)) ffOverride = v;
+  }
 });
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',update);
 update();

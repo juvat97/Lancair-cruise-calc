@@ -907,14 +907,17 @@ function resetDefaults(){
 }
 
 document.getElementById('reset-btn').addEventListener('click',resetDefaults);
-// TAS and FF: mark as user-edited when user types, then update
+// TAS and FF: mark as user-edited, debounce update so partial keystrokes don't run
+var _tasDebounce, _ffDebounce;
 document.getElementById('tas').addEventListener('input', function(){
   this.dataset.userEdited = '1';
-  update();
+  clearTimeout(_tasDebounce);
+  _tasDebounce = setTimeout(update, 600);
 });
 document.getElementById('ff-cruise').addEventListener('input', function(){
   this.dataset.userEdited = '1';
-  update();
+  clearTimeout(_ffDebounce);
+  _ffDebounce = setTimeout(update, 600);
 });
 // Alt slider: apply real data to fields first, then update
 document.getElementById('alt').addEventListener('input', function(){

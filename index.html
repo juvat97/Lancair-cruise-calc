@@ -272,6 +272,8 @@
   .chart-wrap { position: relative; width: 100%; height: 200px; }
 
   .note { font-size: 11px; color: var(--text3); margin-top: 0.75rem; line-height: 1.55; }
+  .tab-pane { display: block; }
+  #tab-perf-btn.active { background: var(--bg2); color: var(--text); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -281,9 +283,16 @@
     <h1>PropJet Go</h1>
     <p>M601 altitude &amp; fuel planning</p>
   </div>
-  <button class="reset-btn" id="reset-btn">Reset</button>
+  <div style="display:flex;align-items:center;gap:8px;">
+    <button class="reset-btn" id="reset-btn">Reset</button>
+    <button onclick="showTab('perf')" id="tab-perf-btn"
+      style="font-size:13px;padding:6px 12px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;">
+      Perf Data
+    </button>
+  </div>
 </header>
 
+<div id="tab-plan" class="tab-pane active">
 <div class="container">
 
   <div class="card">
@@ -454,7 +463,7 @@
       <div class="metric"><div class="m-label">Alt gained</div><div class="m-num" id="r-climb-delta">—</div><div class="m-unit">ft</div></div>
     </div>
 
-    <div class="phase-label">Cruise</div>
+    <div class="phase-label">Cruise <span id="real-data-badge" style="display:none;font-size:10px;padding:1px 6px;border-radius:8px;background:var(--teal-bg);color:var(--teal-label);font-weight:500;vertical-align:middle;">real data</span></div>
     <div class="metric-grid cols4 spacer">
       <div class="metric"><div class="m-label">Fuel</div><div class="m-num" id="r-crfuel">—</div><div class="m-unit">gal</div></div>
       <div class="metric"><div class="m-label">Time</div><div class="m-num" id="r-crtime">—</div><div class="m-unit">hr+min</div></div>
@@ -507,6 +516,79 @@
   </div>
 
 </div>
+
+</div> <!-- end tab-plan -->
+
+<div id="tab-perf" class="tab-pane" style="display:none;">
+<div class="container">
+
+  <div class="card">
+    <div class="section-label">Log a performance data point</div>
+    <p class="note" style="margin-bottom:1rem;">Record actual in-flight data to build a personalized performance model for your aircraft. Over time these data points override the generic M601 curves for TAS and fuel flow.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Altitude (ft)</div>
+        <input type="number" id="pd-alt" placeholder="17000" min="1000" max="35000" step="1000"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">True airspeed (kts)</div>
+        <input type="number" id="pd-tas" placeholder="280" min="100" max="400" step="1"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Fuel flow (gph)</div>
+        <input type="number" id="pd-ff" placeholder="32" min="5" max="80" step="0.5"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">ISA deviation (°C)</div>
+        <input type="number" id="pd-isa" placeholder="0" min="-40" max="40" step="0.5"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="savePerfPoint()"
+        style="flex:1;padding:9px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;cursor:pointer;font-weight:500;">
+        Save data point
+      </button>
+      <button onclick="showTab('plan')"
+        style="padding:9px 16px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;">
+        ← Back to planner
+      </button>
+    </div>
+    <div id="pd-msg" style="display:none;margin-top:0.75rem;font-size:13px;padding:8px 10px;border-radius:var(--radius);"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-label">Altitude comparison — real vs generic model</div>
+    <div class="chart-wrap" style="height:220px;">
+      <canvas id="perfChart"></canvas>
+    </div>
+    <div style="display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--text3);">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#185FA5;margin-right:4px;"></span>Your aircraft TAS</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#B5D4F4;margin-right:4px;"></span>Generic TAS model</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#A32D2D;margin-right:4px;"></span>Your aircraft FF</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#F7C1C1;margin-right:4px;"></span>Generic FF model</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+      <div class="section-label" style="margin:0;">Saved data points</div>
+      <button onclick="clearPerfData()"
+        style="font-size:12px;padding:4px 10px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--red-label);cursor:pointer;">
+        Clear all
+      </button>
+    </div>
+    <div id="pd-table-wrap">
+      <p style="font-size:13px;color:var(--text3);">No data points saved yet.</p>
+    </div>
+  </div>
+
+</div>
+</div> <!-- end tab-perf -->
+
 
 <script>
 function init() {
@@ -685,7 +767,13 @@ function update(){
   document.getElementById('alt-fuel-hint').textContent    = '= '+altFuelGal+' gal';
 
   // ── Compute flight ────────────────────────────────────────────────────────
-  const r = compute(dist,alt,depElev,arrElev,ffClimb,ffCruise,ffDesc,climbRate,descRate,tas,ws,wd);
+  // Apply real performance data override at cruise altitude if available
+  var ffCruiseEff = ffCruise, tasEff = tas;
+  if (typeof getRealPerfAtAlt !== 'undefined') {
+    var realPerf = getRealPerfAtAlt(alt);
+    if (realPerf) { ffCruiseEff = realPerf.ff; tasEff = realPerf.tas; }
+  }
+  const r = compute(dist,alt,depElev,arrElev,ffClimb,ffCruiseEff,ffDesc,climbRate,descRate,tasEff,ws,wd);
 
   document.getElementById('r-cfuel').textContent       = r.climbGal;
   document.getElementById('r-ctime').textContent       = fmtTime(r.climbMins);
@@ -696,6 +784,12 @@ function update(){
   document.getElementById('r-crdist').textContent      = r.cruiseDist;
   document.getElementById('r-gs').textContent          = r.gs;
   document.getElementById('r-gs2').textContent         = r.gs;
+  // Show real-data indicator if override is active
+  var realIndEl = document.getElementById('real-data-badge');
+  if (realIndEl) {
+    var hasReal = (typeof getRealPerfAtAlt !== 'undefined') && getRealPerfAtAlt(alt) !== null;
+    realIndEl.style.display = hasReal ? 'inline-block' : 'none';
+  }
   document.getElementById('r-dfuel').textContent       = r.descGal;
   document.getElementById('r-dtime').textContent       = fmtTime(r.descMins);
   document.getElementById('r-ddist').textContent       = r.descDist;
@@ -739,9 +833,23 @@ function update(){
   // Derive cruise KIAS from current TAS at current alt, then compute ISA TAS at each chart alt
   const cruiseKias = tas * Math.sqrt(densityRatio(alt));
   const fuelData = alts.map(a=>{
-    const gph    = cruiseGphAtAlt(a,alt,ffCruise);
-    const tasAdj = Math.max(160, cruiseKias / Math.sqrt(densityRatio(a)));
-    const res    = compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,ws,wd);
+    var gph    = cruiseGphAtAlt(a,alt,ffCruise);
+    var tasAdj = Math.max(160, cruiseKias / Math.sqrt(densityRatio(a)));
+    // Override with real performance data if available
+    if (typeof getRealPerfAtAlt !== 'undefined') {
+      var realPerf = getRealPerfAtAlt(a);
+      if (realPerf) { gph = realPerf.ff; tasAdj = realPerf.tas; }
+    }
+    // Use altitude-specific winds from cached fetch if available
+    var wsChart = ws, wdChart = wd;
+    if (cachedWindsData.dep && cachedWindsData.mid && cachedWindsData.arr) {
+      var midData = interpWindAtFrac(0.5, cachedWindsData.dep, cachedWindsData.mid, cachedWindsData.arr);
+      var wAtAlt  = interpWindAtAlt(a, midData);
+      var hwComp  = headwindComp(wAtAlt.spd, wAtAlt.dir, cachedWindsData.routeHdg);
+      wsChart = Math.abs(hwComp);
+      wdChart = hwComp >= 0 ? 'head' : 'tail';
+    }
+    const res = compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,wsChart,wdChart);
     return res.noAlt ? null : res.totalGal;
   });
   const vf    = fuelData.filter(f=>f!==null);
@@ -813,6 +921,8 @@ window.update = update;
 </script>
 <script>
 var airportCoords = { dep: null, arr: null };
+// Cached winds aloft data for chart use
+var cachedWindsData = { dep: null, mid: null, arr: null, routeHdg: null };
 
 function haversineNm(lat1, lon1, lat2, lon2) {
   var R = 3440.065; // Earth radius in nm
@@ -1075,6 +1185,11 @@ function fetchWindsAloft() {
     var depData = parseOpenMeteoResponse(results[0]);
     var midData = parseOpenMeteoResponse(results[1]);
     var arrData = parseOpenMeteoResponse(results[2]);
+    cachedWindsData.dep = depData;
+    cachedWindsData.mid = midData;
+    cachedWindsData.arr = arrData;
+    cachedWindsData.routeHdg = routeHdg;
+    if (window.update) window.update();
 
     if (depData.length === 0) throw new Error('No data');
 
@@ -1164,15 +1279,9 @@ function fetchWindsAloft() {
     window.update && window.update();
 
     // Build display
-    var isaStr = '';
-    if (isaDeviation !== null) {
-      var sign = isaDeviation >= 0 ? '+' : '';
-      isaStr = ' · ISA ' + sign + isaDeviation.toFixed(1) + '°C';
-    }
     var html = '<div style="font-weight:500;color:var(--text);margin-bottom:6px;">'
       +'Route '+Math.round(routeHdg)+'° true · avg '
       +avgSpd+' kts '+(avgHW>=0?'headwind':'tailwind')
-      +isaStr
       +'</div>';
     html += '<table style="width:100%;border-collapse:collapse;font-size:11px;">';
     html += '<tr style="color:var(--text3);"><td style="padding:1px 4px 1px 0">Waypoint</td>'
@@ -1187,6 +1296,14 @@ function fetchWindsAloft() {
         +'<td style="padding:1px 4px;color:'+col+'">'+hwStr+'</td></tr>';
     });
     html += '</table>';
+    if (isaDeviation !== null) {
+      var sign = isaDeviation >= 0 ? '+' : '';
+      var isaColor = isaDeviation > 5 ? '#A32D2D' : isaDeviation < -5 ? '#0C447C' : '#27500A';
+      html += '<div style="margin-top:7px;padding-top:6px;border-top:0.5px solid var(--border);'
+        +'font-size:12px;font-weight:500;color:'+isaColor+';">'
+        +'ISA '+sign+isaDeviation.toFixed(1)+'°C at cruise altitude'
+        +'</div>';
+    }
     html += '<div style="color:var(--text3);font-size:10px;margin-top:5px;">'
       +'GFS via Open-Meteo · '+waypoints.length+' waypoints · auto-filled '
       +avgSpd+' kts '+avgDir+'wind</div>';
@@ -1228,6 +1345,234 @@ function swapAirports() {
   updateAirportDistance();
   fetchWindsAloft();
   window.update && window.update();
+}
+</script>
+
+<script>
+// ── Performance data store ──────────────────────────────────────────────────
+var PERF_KEY = 'propjet_perf_data';
+var perfChart = null;
+
+function loadPerfData() {
+  try { return JSON.parse(localStorage.getItem(PERF_KEY)) || []; }
+  catch(e) { return []; }
+}
+function savePerfData(data) {
+  localStorage.setItem(PERF_KEY, JSON.stringify(data));
+}
+
+// ── Interpolate real data at a given altitude ─────────────────────────────────
+// Returns {tas, ff} override if enough real data exists near altFt, else null
+function getRealPerfAtAlt(altFt) {
+  var data = loadPerfData();
+  if (!data.length) return null;
+  var BANDWIDTH = 3000; // ft — data within this range contributes
+  var tasSum=0, ffSum=0, wSum=0;
+  data.forEach(function(d) {
+    var dist = Math.abs(d.alt - altFt);
+    if (dist <= BANDWIDTH) {
+      var w = 1 - dist/BANDWIDTH; // linear weight: 1 at exact match, 0 at edge
+      tasSum += d.tas * w;
+      ffSum  += d.ff  * w;
+      wSum   += w;
+    }
+  });
+  if (wSum < 0.5) return null; // not enough data coverage
+  return { tas: tasSum/wSum, ff: ffSum/wSum };
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.getElementById('tab-plan').style.display = name==='plan' ? 'block' : 'none';
+  document.getElementById('tab-perf').style.display = name==='perf' ? 'block' : 'none';
+  var btn = document.getElementById('tab-perf-btn');
+  if (btn) btn.classList.toggle('active', name==='perf');
+  if (name==='perf') refreshPerfPage();
+}
+
+// ── Save a data point ─────────────────────────────────────────────────────────
+function savePerfPoint() {
+  var alt   = parseFloat(document.getElementById('pd-alt').value);
+  var tas   = parseFloat(document.getElementById('pd-tas').value);
+  var ff    = parseFloat(document.getElementById('pd-ff').value);
+  var isa   = parseFloat(document.getElementById('pd-isa').value);
+  var msg   = document.getElementById('pd-msg');
+
+  if (isNaN(alt)||isNaN(tas)||isNaN(ff)||isNaN(isa)) {
+    msg.style.display='block';
+    msg.style.background='var(--red-bg)';
+    msg.style.color='var(--red-text)';
+    msg.textContent='Please fill in all four fields.';
+    return;
+  }
+  var data = loadPerfData();
+  data.push({ alt:Math.round(alt), tas:+tas.toFixed(1), ff:+ff.toFixed(2), isa:+isa.toFixed(1),
+    date: new Date().toISOString().slice(0,10) });
+  data.sort(function(a,b){ return a.alt-b.alt; });
+  savePerfData(data);
+
+  msg.style.display='block';
+  msg.style.background='var(--green-bg)';
+  msg.style.color='var(--green-text)';
+  msg.textContent='Saved: '+Math.round(alt)+' ft · '+tas.toFixed(0)+' kts · '+ff.toFixed(1)+' gph · ISA '+(isa>=0?'+':'')+isa.toFixed(1)+'°C';
+  document.getElementById('pd-alt').value='';
+  document.getElementById('pd-tas').value='';
+  document.getElementById('pd-ff').value='';
+  document.getElementById('pd-isa').value='';
+
+  refreshPerfPage();
+  // Trigger chart update in the planner to pick up new real data
+  if (window.update) window.update();
+}
+
+function deletePerfPoint(idx) {
+  var data = loadPerfData();
+  data.splice(idx, 1);
+  savePerfData(data);
+  refreshPerfPage();
+  if (window.update) window.update();
+}
+
+function clearPerfData() {
+  if (!confirm('Delete all saved performance data?')) return;
+  localStorage.removeItem(PERF_KEY);
+  refreshPerfPage();
+  if (window.update) window.update();
+}
+
+// ── Refresh the perf page UI ──────────────────────────────────────────────────
+function refreshPerfPage() {
+  renderPerfTable();
+  renderPerfChart();
+}
+
+function renderPerfTable() {
+  var data = loadPerfData();
+  var wrap = document.getElementById('pd-table-wrap');
+  if (!data.length) {
+    wrap.innerHTML = '<p style="font-size:13px;color:var(--text3);">No data points saved yet.</p>';
+    return;
+  }
+  var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+  html += '<tr style="color:var(--text3);border-bottom:0.5px solid var(--border);">'
+    +'<td style="padding:4px 6px 4px 0;">Date</td>'
+    +'<td style="padding:4px 6px;">Alt (ft)</td>'
+    +'<td style="padding:4px 6px;">TAS (kts)</td>'
+    +'<td style="padding:4px 6px;">FF (gph)</td>'
+    +'<td style="padding:4px 6px;">ISA</td>'
+    +'<td style="padding:4px 0 4px 6px;"></td>'
+    +'</tr>';
+  data.forEach(function(d, i) {
+    var isaStr = (d.isa>=0?'+':'')+d.isa+'°C';
+    html += '<tr style="border-bottom:0.5px solid var(--border);">'
+      +'<td style="padding:5px 6px 5px 0;color:var(--text3);">'+d.date+'</td>'
+      +'<td style="padding:5px 6px;">'+d.alt.toLocaleString()+'</td>'
+      +'<td style="padding:5px 6px;">'+d.tas+'</td>'
+      +'<td style="padding:5px 6px;">'+d.ff+'</td>'
+      +'<td style="padding:5px 6px;">'+isaStr+'</td>'
+      +'<td style="padding:5px 0 5px 6px;text-align:right;">'
+      +'<button onclick="deletePerfPoint('+i+')" style="font-size:11px;padding:2px 8px;'
+      +'border-radius:4px;border:0.5px solid var(--border2);background:transparent;'
+      +'color:var(--red-label);cursor:pointer;">✕</button>'
+      +'</td></tr>';
+  });
+  html += '</table>';
+  wrap.innerHTML = html;
+}
+
+function renderPerfChart() {
+  var canvas = document.getElementById('perfChart');
+  if (!canvas) return;
+  var data = loadPerfData();
+  var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var tc = isDark?'#6b6a65':'#888780';
+  var gc = isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.06)';
+
+  // Chart altitudes
+  var chartAlts = [5000,8000,10000,12000,14000,17000,19000,21000,23000,25000,28000];
+  var labels = chartAlts.map(function(a){ return a>=18000?'FL'+(a/100):(a/1000)+'k'; });
+
+  // Generic model values (anchor FL170, 32gph, 280kts)
+  var ANCHOR_ALT=17000, ANCHOR_GPH=32, ANCHOR_TAS=280;
+  function densityRatioJS(altFt) {
+    var altM=altFt*0.3048, T_sl=288.15;
+    var T=(altM<=11000?15.0-6.5*(altM/1000):-56.5)+273.15;
+    if(altM<=11000) return Math.pow(T/T_sl,4.256);
+    return Math.pow(216.65/T_sl,4.256)*Math.exp(-(altM-11000)/6341.6);
+  }
+  var cruiseKias = ANCHOR_TAS*Math.sqrt(densityRatioJS(ANCHOR_ALT));
+  var genericTas = chartAlts.map(function(a){
+    return Math.max(160, cruiseKias/Math.sqrt(densityRatioJS(a)));
+  });
+  function cruiseGphModel(altFt) {
+    if(altFt<=19000&&ANCHOR_ALT<=19000) return ANCHOR_GPH*(1-(altFt-ANCHOR_ALT)/1000*0.008);
+    if(altFt>19000&&ANCHOR_ALT<=19000)  return ANCHOR_GPH*(1-(19000-ANCHOR_ALT)/1000*0.008+(altFt-19000)/1000*0.018);
+    return ANCHOR_GPH;
+  }
+  var genericFf = chartAlts.map(function(a){ return +Math.max(0.6*ANCHOR_GPH,Math.min(1.5*ANCHOR_GPH,cruiseGphModel(a))).toFixed(1); });
+
+  // Real data points — scatter on same axes (interpolated to chart alts)
+  var realTas = chartAlts.map(function(a){
+    var nearby = data.filter(function(d){ return Math.abs(d.alt-a)<=2500; });
+    if (!nearby.length) return null;
+    var wSum=0,tSum=0;
+    nearby.forEach(function(d){
+      var w=1-Math.abs(d.alt-a)/2500;
+      tSum+=d.tas*w; wSum+=w;
+    });
+    return wSum>0.3 ? +(tSum/wSum).toFixed(1) : null;
+  });
+  var realFf = chartAlts.map(function(a){
+    var nearby = data.filter(function(d){ return Math.abs(d.alt-a)<=2500; });
+    if (!nearby.length) return null;
+    var wSum=0,fSum=0;
+    nearby.forEach(function(d){
+      var w=1-Math.abs(d.alt-a)/2500;
+      fSum+=d.ff*w; wSum+=w;
+    });
+    return wSum>0.3 ? +(fSum/wSum).toFixed(1) : null;
+  });
+
+  var datasets = [
+    { label:'Generic TAS', data:genericTas, borderColor:'#B5D4F4', backgroundColor:'transparent',
+      type:'line', borderWidth:1.5, pointRadius:3, pointBackgroundColor:'#B5D4F4', yAxisID:'tas' },
+    { label:'Your TAS', data:realTas, borderColor:'#185FA5', backgroundColor:'transparent',
+      type:'line', borderWidth:2, pointRadius:5, pointBackgroundColor:'#185FA5',
+      spanGaps:false, yAxisID:'tas' },
+    { label:'Generic FF', data:genericFf, borderColor:'#F7C1C1', backgroundColor:'transparent',
+      type:'line', borderWidth:1.5, pointRadius:3, pointBackgroundColor:'#F7C1C1', yAxisID:'ff' },
+    { label:'Your FF', data:realFf, borderColor:'#A32D2D', backgroundColor:'transparent',
+      type:'line', borderWidth:2, pointRadius:5, pointBackgroundColor:'#A32D2D',
+      spanGaps:false, yAxisID:'ff' },
+  ];
+
+  if (perfChart) {
+    perfChart.data.labels = labels;
+    perfChart.data.datasets = datasets;
+    perfChart.options.scales.x.ticks.color = tc;
+    perfChart.options.scales.tas.ticks.color = tc;
+    perfChart.options.scales.ff.ticks.color = tc;
+    perfChart.options.scales.tas.grid.color = gc;
+    perfChart.update('none');
+  } else {
+    perfChart = new Chart(canvas, {
+      type:'line',
+      data:{ labels:labels, datasets:datasets },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{
+          x:{ ticks:{ font:{size:11}, color:tc }, grid:{ display:false } },
+          tas:{ type:'linear', position:'left',
+            title:{ display:true, text:'TAS (kts)', font:{size:11}, color:tc },
+            ticks:{ font:{size:11}, color:tc }, grid:{ color:gc } },
+          ff:{ type:'linear', position:'right',
+            title:{ display:true, text:'FF (gph)', font:{size:11}, color:tc },
+            ticks:{ font:{size:11}, color:tc }, grid:{ display:false } }
+        }
+      }
+    });
+  }
 }
 </script>
 

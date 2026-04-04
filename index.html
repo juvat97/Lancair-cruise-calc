@@ -741,7 +741,17 @@ function update(){
   var ffCruiseEff = ffCruise, tasEff = tas;
   if (typeof getRealPerfAtAlt !== 'undefined') {
     var realPerf = getRealPerfAtAlt(alt, currentIsaDev);
-    if (realPerf) { ffCruiseEff = realPerf.ff; tasEff = realPerf.tas; }
+    if (realPerf) {
+      ffCruiseEff = realPerf.ff;
+      tasEff = realPerf.tas;
+      // Update input fields to reflect real data values so user sees what's being used
+      var tasInput = document.getElementById('tas');
+      var ffInput  = document.getElementById('ff-cruise');
+      if (tasInput && Math.round(realPerf.tas) !== parseInt(tasInput.value))
+        tasInput.value = Math.round(realPerf.tas);
+      if (ffInput && parseFloat(realPerf.ff.toFixed(1)) !== parseFloat(ffInput.value))
+        ffInput.value = realPerf.ff.toFixed(1);
+    }
   }
 
   // ── Binary search for maxDist using effective FF/TAS ─────────────────────

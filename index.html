@@ -662,21 +662,21 @@
     <p class="note" style="margin-bottom:1rem;">Planned values are pulled from the current planner. Enter what actually happened. Saving auto-adds TAS, FF, and ISA dev to your Perf Data table.</p>
 
     <!-- Route & Date -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:1rem;">
-      <div>
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:1rem;">
+      <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Date</div>
         <input type="date" id="log-date"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+          style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;">
       </div>
-      <div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Departure</div>
-        <input type="text" id="log-dep" placeholder="KGYR" maxlength="4"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;text-transform:uppercase;">
+      <div style="width:72px;flex-shrink:0;">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Dep</div>
+        <input type="text" id="log-dep" placeholder="KAFO" maxlength="4"
+          style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;text-transform:uppercase;text-align:center;">
       </div>
-      <div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Arrival</div>
-        <input type="text" id="log-arr" placeholder="KAFO" maxlength="4"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;text-transform:uppercase;">
+      <div style="width:72px;flex-shrink:0;">
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Arr</div>
+        <input type="text" id="log-arr" placeholder="KGEU" maxlength="4"
+          style="width:100%;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;text-transform:uppercase;text-align:center;">
       </div>
     </div>
 

@@ -254,17 +254,17 @@ def test_C():
 def test_D():
     print("\n── D. LONG LEG KAFO→KPHX (500nm FL280, 30kt TW)")
     gph28 = cruiseGphAtAlt(28000, 17000, 32)
-    tas28  = min(285, 280+(28000-17000)/1000*(285-280)/max(1,28000-17000)*1000)
+    tas28  = min(320, 280+(28000-17000)/1000*(320-280)/max(1,28000-17000)*1000)
     s=run(dist=500, alt=28000, dEl=6204, aEl=1135, fCr=gph28, tas=tas28, ws=30, wd='tail')
     s0=run(dist=500, alt=28000, dEl=6204, aEl=1135, fCr=gph28, tas=tas28)
     r=s['r']
     print(f"  gph={gph28:.3f} TAS={tas28:.1f}  Climb:{r['climbDist']}nm  Cruise:{r['cruiseDist']}nm GS={r['gs']}kts")
     print(f"  Descent:{r['descDist']}nm avgTAS={r['avgDesTas']}kts  Total:{r['totalGal']}gal {fmtTime(r['totalMins'])}")
-    chk("D1. GS=315 (285+30 TW)", r['gs']==315)
+    chk("D1. GS=350 (320+30 TW)", r["gs"]==350)
     chk("D2. climbDelta=21796ft (28000-6204)", r['climbDelta']==21796)
     chk("D3. dist sum=500nm", abs(r['_cG']+r['_crG']+r['_dG']-500)<0.5)
     chk("D4. gph@FL280≈29.994", abs(gph28-29.994)<0.01)
-    chk("D5. TAS@FL280=285.0 (cap)", abs(tas28-285)<0.01)
+    chk("D5. TAS@FL280=320.0 (cap)", abs(tas28-320)<0.01)
     chk("D6. TW less fuel than no wind", r['totalGal']<s0['r']['totalGal'])
     chk("D7. all fuel ≥0", r['climbGal']>=0 and r['cruiseGal']>=0 and r['descGal']>=0)
 
@@ -454,12 +454,12 @@ def test_M():
     print("\n── M. ALTITUDE COMPARISON CHART")
     alts=[5000,8000,10000,12000,14000,17000,19000,21000,23000,25000,28000]
     cruiseKias=280*math.sqrt(densityRatio(17000))
-    tasRate=(285-280)/max(1,28000-17000)*1000
+    tasRate=(320-280)/max(1,28000-17000)*1000
     print("  Alt    | GPH    | TAS    | Fuel(500nm)")
     fuelBars=[]
     for a in alts:
         gph=cruiseGphAtAlt(a,17000,32)
-        if a>=17000: tasAdj=min(285,280+(a-17000)/1000*tasRate)
+        if a>=17000: tasAdj=min(320,280+(a-17000)/1000*tasRate)
         else: tasAdj=max(160,cruiseKias/math.sqrt(densityRatio(a)))
         res=compute(500,a,1000,1000,37,gph,10,1400,1000,tasAdj,0,'head')
         fuel=None if res['_cG']>=500 else res['totalGal']
@@ -526,8 +526,8 @@ def test_Q():
         chk(f"Q1. dist {dists[i]}→{dists[i+1]}nm: more fuel ({fuels[i]:.1f}<{fuels[i+1]:.1f})", fuels[i]<fuels[i+1])
         chk(f"Q1. dist {dists[i]}→{dists[i+1]}nm: more time", times[i]<times[i+1])
     # Max stress: FL210, 850nm, 40kt HW, high elevation, alt fuel
-    tasRate=(285-280)/max(1,28000-17000)*1000
-    gph21=cruiseGphAtAlt(21000,17000,32); tas21=min(285,280+(21000-17000)/1000*tasRate)
+    tasRate=(320-280)/max(1,28000-17000)*1000
+    gph21=cruiseGphAtAlt(21000,17000,32); tas21=min(320,280+(21000-17000)/1000*tasRate)
     r=compute(850,21000,6204,5434,37,gph21,10,1400,1000,tas21,40,'head')
     chk("Q2. stress 850nm FL210 40ktHW: dist sum", abs(r['_cG']+r['_crG']+r['_dG']-850)<0.5)
     chk("Q2. stress: all fuel ≥0", r['climbGal']>=0 and r['cruiseGal']>=0 and r['descGal']>=0)

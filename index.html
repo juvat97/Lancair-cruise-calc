@@ -1015,10 +1015,10 @@ function update(){
 
   // ── Altitude comparison chart ─────────────────────────────────────────────
   const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  // Chart TAS: linear above anchor (thrust-limited, caps at 285 KTAS at FL280),
+  // Chart TAS: linear above anchor (thrust-limited, caps at 320 KTAS at FL280),
   // ISA-based below anchor (physically correct when thrust is not limiting)
   const cruiseKias = tas * Math.sqrt(densityRatio(alt));
-  const TAS_CEIL = 285, TAS_CEIL_ALT = 28000;
+  const TAS_CEIL = 320, TAS_CEIL_ALT = 28000;
   const tasRateAbove = alt < TAS_CEIL_ALT ? (TAS_CEIL - tas) / Math.max(1, TAS_CEIL_ALT - alt) * 1000 : 0;
   const fuelData = alts.map(a=>{
     var gph    = cruiseGphAtAlt(a,alt,ffCruise);
@@ -1827,7 +1827,7 @@ function renderPerfChart() {
     return Math.pow(216.65/T_sl,4.256)*Math.exp(-(altM-11000)/6341.6);
   }
   var cruiseKias = ANCHOR_TAS*Math.sqrt(densityRatioJS(ANCHOR_ALT));
-  var TAS_CEIL = 285, TAS_CEIL_ALT = 28000;
+  var TAS_CEIL = 320, TAS_CEIL_ALT = 28000;
   var tasRateAbove = ANCHOR_ALT < TAS_CEIL_ALT
     ? (TAS_CEIL - ANCHOR_TAS) / (TAS_CEIL_ALT - ANCHOR_ALT) * 1000 : 0;
   var genericTas = chartAlts.map(function(a){

@@ -231,6 +231,9 @@
     .wind-row label { width: 140px; font-size: 12px; }
     .elev-item label { font-size: 12px; }
   }
+  @media (max-width: 390px) {
+    .metric .m-num { font-size: 19px; }
+  }
 
   .metric { background: var(--bg2); border-radius: var(--radius); padding: 0.6rem 0.75rem; }
   .metric .m-label { font-size: 11px; color: var(--text2); margin-bottom: 2px; }
@@ -273,7 +276,39 @@
 
   .note { font-size: 11px; color: var(--text3); margin-top: 0.75rem; line-height: 1.55; }
   .tab-pane { display: block; }
-  #tab-perf-btn.active { background: var(--bg2); color: var(--text); font-weight: 500; }
+
+  /* Bottom navigation bar */
+  .bottom-nav {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 56px;
+    background: var(--bg);
+    border-top: 0.5px solid var(--border);
+    display: flex;
+    z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .bottom-nav button {
+    flex: 1;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
+    transition: color 0.15s;
+  }
+  .bottom-nav button svg { opacity: 0.45; transition: opacity 0.15s; }
+  .bottom-nav button.active { color: var(--blue-label); }
+  .bottom-nav button.active svg { opacity: 1; }
+  /* Push page content above the nav bar */
+  body { padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px) + 1rem); }
 </style>
 </head>
 <body>
@@ -285,10 +320,6 @@
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <button class="reset-btn" id="reset-btn">Reset</button>
-    <button onclick="showTab('perf')" id="tab-perf-btn"
-      style="font-size:13px;padding:6px 12px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;">
-      Perf Data
-    </button>
   </div>
 </header>
 
@@ -300,17 +331,19 @@
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.75rem;">
       <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">ICAO identifier</div>
-        <input type="text" id="dep-icao" placeholder="KGYR" value="KGYR" maxlength="4"
+        <input type="text" id="dep-icao" placeholder="KAFO" value="KAFO" maxlength="4"
+          autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"
+          onblur="if(this.value.trim().length>=3)fetchAirport('dep')"
           style="width:100%;text-transform:uppercase;font-size:15px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);">
       </div>
       <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Field elevation (ft)</div>
         <input type="number" id="dep-elev" value="1000" min="0" max="14000" step="100"
-          style="width:100%;text-align:right;font-size:14px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);">
+          style="width:100%;text-align:right;font-size:14px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);" onfocus="this.select()" inputmode="decimal">
       </div>
       <button id="dep-fetch-btn" onclick="fetchAirport('dep')"
         style="flex-shrink:0;font-size:13px;padding:7px 14px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;height:38px;">
-        Fetch
+        Load
       </button>
     </div>
     <div id="dep-wx" style="display:none;border-radius:var(--radius);background:var(--bg2);padding:8px 10px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
@@ -334,17 +367,19 @@
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.75rem;">
       <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">ICAO identifier</div>
-        <input type="text" id="arr-icao" placeholder="KAFO" value="KAFO" maxlength="4"
+        <input type="text" id="arr-icao" placeholder="KGEU" value="KGEU" maxlength="4"
+          autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false"
+          onblur="if(this.value.trim().length>=3)fetchAirport('arr')"
           style="width:100%;text-transform:uppercase;font-size:15px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);">
       </div>
       <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Field elevation (ft)</div>
         <input type="number" id="arr-elev" value="1000" min="0" max="14000" step="100"
-          style="width:100%;text-align:right;font-size:14px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);">
+          style="width:100%;text-align:right;font-size:14px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);" onfocus="this.select()" inputmode="decimal">
       </div>
       <button id="arr-fetch-btn" onclick="fetchAirport('arr')"
         style="flex-shrink:0;font-size:13px;padding:7px 14px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;height:38px;">
-        Fetch
+        Load
       </button>
     </div>
     <div id="arr-wx" style="display:none;border-radius:var(--radius);background:var(--bg2);padding:8px 10px;font-size:12px;color:var(--text2);line-height:1.6;"></div>
@@ -355,7 +390,7 @@
     <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:0.75rem;">
       <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Wind speed (kts)</div>
-        <input type="number" id="wind-spd" value="0" min="0" max="200" step="1" oninput="update()">
+        <input type="number" id="wind-spd" value="0" min="0" max="200" step="1" oninput="update()" onfocus="this.select()" inputmode="decimal">
       </div>
       <div style="flex:1;">
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Direction</div>
@@ -366,7 +401,7 @@
       </div>
       <button id="winds-fetch-btn" onclick="fetchWindsAloft()"
         style="flex-shrink:0;font-size:13px;padding:7px 14px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;white-space:nowrap;height:38px;">
-        Fetch
+        Load
       </button>
     </div>
     <div id="winds-wx" style="display:none;border-radius:var(--radius);background:var(--bg2);padding:8px 10px;font-size:12px;color:var(--text2);line-height:1.8;"></div>
@@ -379,26 +414,26 @@
     <div class="section-label">Fuel on board &amp; reserves</div>
     <div class="row">
       <label>Fuel on board (gal)</label>
-      <input type="number" id="fob" value="145" min="1" max="145" step="1">
+      <input type="number" id="fob" value="145" min="0" max="145" step="1" onfocus="this.select()" inputmode="decimal">
       <span class="hint">useable max 145</span>
     </div>
     <div class="row">
       <label>Reserve fuel flow (gph)</label>
-      <input type="number" id="reserve-gph" value="38" min="5" max="60" step="0.5">
+      <input type="number" id="reserve-gph" value="38" min="5" max="60" step="0.5" onfocus="this.select()" inputmode="decimal">
       <span class="hint" id="reserve-gal-hint">= 33.0 gal (60 min)</span>
     </div>
     <div class="row">
       <label>Reserve duration (min)</label>
-      <input type="number" id="reserve-mins" value="60" min="0" max="120" step="5">
+      <input type="number" id="reserve-mins" value="60" min="0" max="120" step="5" onfocus="this.select()" inputmode="decimal">
     </div>
     <div class="row">
       <label>Taxi fuel (gal)</label>
-      <input type="number" id="taxi-fuel" value="3" min="0" max="20" step="1">
+      <input type="number" id="taxi-fuel" value="3" min="0" max="20" step="1" onfocus="this.select()" inputmode="decimal">
       <span class="hint">added to Min takeoff fuel</span>
     </div>
     <div class="row">
       <label>Alternate distance (nm)</label>
-      <input type="number" id="alt-dist" value="0" min="0" max="300" step="5">
+      <input type="number" id="alt-dist" value="0" min="0" max="300" step="5" onfocus="this.select()" inputmode="decimal">
       <span class="hint" id="alt-fuel-hint">= 0.0 gal</span>
     </div>
     <p class="hint-text" style="margin-top:0.5rem;">Alternate fuel at 38 gph / 220 KIAS / 10,000 ft MSL (~256 KTAS, no wind). Taxi/contingency burned before takeoff (engine start + taxi to runway).</p>
@@ -422,29 +457,37 @@
     <div class="section-label">M601 fuel flows &amp; performance</div>
     <div class="row">
       <label>Climb fuel flow (gph)</label>
-      <input type="number" id="ff-climb" value="37" min="10" max="50" step="0.5">
+      <input type="number" id="ff-climb" value="37" min="10" max="50" step="0.5" onfocus="this.select()" inputmode="decimal">
       <span class="hint">at climb power</span>
     </div>
     <div class="row">
       <label>Cruise fuel flow (gph)</label>
-      <input type="number" id="ff-cruise" value="32" min="10" max="60" step="0.5">
+      <input type="number" id="ff-cruise" value="32" min="10" max="60" step="0.5" onfocus="this.select()" inputmode="decimal">
       <span class="hint">at target altitude</span>
     </div>
     <div class="row">
-      <label>Descent fuel flow (gph)</label>
-      <input type="number" id="ff-desc" value="10" min="2" max="40" step="0.5">
+      <label>Descent FF (gph)</label>
+      <div style="display:flex;gap:8px;align-items:center;flex:1;">
+        <input type="number" id="ff-desc" value="10" min="2" max="40" step="0.5" style="flex:1;min-width:0;" onfocus="this.select()" inputmode="decimal">
+        <div style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;flex-shrink:0;">
+          <button id="desc-eco-btn" onclick="setDescMode('eco')"
+            style="padding:5px 10px;font-size:12px;font-weight:500;border:none;cursor:pointer;background:var(--blue-bg);color:var(--blue-text);">Eco</button>
+          <button id="desc-hi-btn" onclick="setDescMode('hi')"
+            style="padding:5px 10px;font-size:12px;font-weight:500;border:none;cursor:pointer;background:var(--bg2);color:var(--text2);">Hi-Spd</button>
+        </div>
+      </div>
     </div>
     <div class="row">
       <label>Avg climb rate (fpm)</label>
-      <input type="number" id="climb-rate" value="1400" min="500" max="5000" step="100">
+      <input type="number" id="climb-rate" value="1400" min="500" max="5000" step="100" onfocus="this.select()" inputmode="decimal">
     </div>
     <div class="row">
       <label>Avg descent rate (fpm)</label>
-      <input type="number" id="desc-rate" value="1000" min="200" max="4000" step="100">
+      <input type="number" id="desc-rate" value="1000" min="200" max="4000" step="100" onfocus="this.select()" inputmode="decimal">
     </div>
     <div class="row">
       <label>Cruise TAS (kts)</label>
-      <input type="number" id="tas" value="280" min="150" max="360" step="1">
+      <input type="number" id="tas" value="280" min="150" max="360" step="1" onfocus="this.select()" inputmode="decimal">
       <span class="hint">at target altitude</span>
     </div>
     <p class="hint-text" style="margin-top:0.5rem;">Descent at 260 KIAS → KTAS via ISA. Descent time = alt delta ÷ descent rate. Descent distance = avg KTAS × descent time, capped at available leg distance.</p>
@@ -529,22 +572,22 @@
       <div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Altitude (ft)</div>
         <input type="number" id="pd-alt" placeholder="17000" min="1000" max="35000" step="1000"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;" onfocus="this.select()" inputmode="decimal">
       </div>
       <div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">True airspeed (kts)</div>
         <input type="number" id="pd-tas" placeholder="280" min="100" max="400" step="1"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;" onfocus="this.select()" inputmode="decimal">
       </div>
       <div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Fuel flow (gph)</div>
         <input type="number" id="pd-ff" placeholder="32" min="5" max="80" step="0.5"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;" onfocus="this.select()" inputmode="decimal">
       </div>
       <div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">ISA deviation (°C)</div>
         <input type="number" id="pd-isa" placeholder="0" min="-40" max="40" step="0.5"
-          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;" onfocus="this.select()" inputmode="decimal">
       </div>
     </div>
     <div style="display:flex;gap:8px;">
@@ -587,7 +630,148 @@
   </div>
 
 </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+      <div class="section-label" style="margin:0;">Export / Import data</div>
+    </div>
+    <p class="note" style="margin-bottom:1rem;">Export saves a CSV file you can open in Excel, Numbers, or share via email or text. Import reads a CSV exported from this app.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button onclick="exportPerfCSV()"
+        style="flex:1;min-width:120px;padding:9px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;cursor:pointer;font-weight:500;">
+        ↓ Export CSV
+      </button>
+      <label style="flex:1;min-width:120px;">
+        <div style="padding:9px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;cursor:pointer;font-weight:500;text-align:center;">
+          ↑ Import CSV
+        </div>
+        <input type="file" id="perf-import-file" accept=".csv" style="display:none;" onchange="importPerfCSV(this)">
+      </label>
+    </div>
+    <div id="import-msg" style="display:none;margin-top:0.75rem;font-size:13px;padding:8px 10px;border-radius:var(--radius);"></div>
+  </div>
+
+</div>
 </div> <!-- end tab-perf -->
+
+<div id="tab-log" class="tab-pane" style="display:none;">
+<div class="container">
+
+  <div class="card">
+    <div class="section-label">Log actual flight data</div>
+    <p class="note" style="margin-bottom:1rem;">Planned values are pulled from the current planner. Enter what actually happened. Saving auto-adds TAS, FF, and ISA dev to your Perf Data table.</p>
+
+    <!-- Route & Date -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Date</div>
+        <input type="date" id="log-date"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;">
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Departure</div>
+        <input type="text" id="log-dep" placeholder="KGYR" maxlength="4"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;text-transform:uppercase;">
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Arrival</div>
+        <input type="text" id="log-arr" placeholder="KAFO" maxlength="4"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;text-transform:uppercase;">
+      </div>
+    </div>
+
+    <!-- Planned vs Actual table -->
+    <div style="overflow-x:auto;margin-bottom:1rem;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="color:var(--text3);border-bottom:0.5px solid var(--border);">
+            <td style="padding:6px 8px 6px 0;"></td>
+            <td style="padding:6px 8px;text-align:center;font-weight:500;">Planned</td>
+            <td style="padding:6px 8px;text-align:center;font-weight:500;">Actual</td>
+            <td style="padding:6px 8px;text-align:center;font-weight:500;">Delta</td>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:0.5px solid var(--border);">
+            <td style="padding:8px 8px 8px 0;color:var(--text2);">Cruise Alt (ft)</td>
+            <td style="padding:8px;text-align:center;" id="log-plan-alt">—</td>
+            <td style="padding:8px;text-align:center;">
+              <input type="number" id="log-act-alt" placeholder="—" min="1000" max="35000" step="500"
+                style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text);font-size:13px;text-align:center;"
+                oninput="updateLogDeltas()" onfocus="this.select()" inputmode="decimal">
+            </td>
+            <td style="padding:8px;text-align:center;" id="log-delta-alt">—</td>
+          </tr>
+          <tr style="border-bottom:0.5px solid var(--border);">
+            <td style="padding:8px 8px 8px 0;color:var(--text2);">TAS (kts)</td>
+            <td style="padding:8px;text-align:center;" id="log-plan-tas">—</td>
+            <td style="padding:8px;text-align:center;">
+              <input type="number" id="log-act-tas" placeholder="—" min="100" max="400" step="1"
+                style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text);font-size:13px;text-align:center;"
+                oninput="updateLogDeltas()" onfocus="this.select()" inputmode="decimal">
+            </td>
+            <td style="padding:8px;text-align:center;" id="log-delta-tas">—</td>
+          </tr>
+          <tr style="border-bottom:0.5px solid var(--border);">
+            <td style="padding:8px 8px 8px 0;color:var(--text2);">Fuel Flow (gph)</td>
+            <td style="padding:8px;text-align:center;" id="log-plan-ff">—</td>
+            <td style="padding:8px;text-align:center;">
+              <input type="number" id="log-act-ff" placeholder="—" min="5" max="80" step="0.5"
+                style="width:80px;padding:4px 6px;border:0.5px solid var(--border2);border-radius:4px;background:var(--bg2);color:var(--text);font-size:13px;text-align:center;"
+                oninput="updateLogDeltas()" onfocus="this.select()" inputmode="decimal">
+            </td>
+            <td style="padding:8px;text-align:center;" id="log-delta-ff">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Actual-only fields -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Actual ISA dev (°C)</div>
+        <input type="number" id="log-act-isa" placeholder="e.g. +5" min="-40" max="40" step="0.5"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;" onfocus="this.select()" inputmode="decimal">
+      </div>
+      <div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:4px;">Actual ITT (°C)</div>
+        <input type="number" id="log-act-itt" placeholder="e.g. 720" min="400" max="1000" step="1"
+          style="width:100%;padding:7px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:14px;" onfocus="this.select()" inputmode="decimal">
+      </div>
+    </div>
+
+    <div id="log-perf-notice" style="display:none;margin-bottom:0.75rem;font-size:12px;padding:7px 10px;border-radius:var(--radius);background:var(--teal-bg);color:var(--teal-text);">
+      ✓ TAS, FF &amp; ISA dev will also be saved to Perf Data automatically.
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveFlightLog()"
+        style="flex:1;padding:9px;border-radius:var(--radius);border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);font-size:14px;cursor:pointer;font-weight:500;">
+        Save flight entry
+      </button>
+      <button onclick="showTab('plan')"
+        style="padding:9px 16px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);font-size:13px;cursor:pointer;">
+        ← Back to planner
+      </button>
+    </div>
+    <div id="log-msg" style="display:none;margin-top:0.75rem;font-size:13px;padding:8px 10px;border-radius:var(--radius);"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+      <div class="section-label" style="margin:0;">Flight history</div>
+      <button onclick="clearFlightLog()"
+        style="font-size:12px;padding:4px 10px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--red-label);cursor:pointer;">
+        Clear all
+      </button>
+    </div>
+    <div id="log-table-wrap">
+      <p style="font-size:13px;color:var(--text3);">No flights logged yet.</p>
+    </div>
+  </div>
+
+</div>
+</div> <!-- end tab-log -->
 
 
 <script>
@@ -598,7 +782,7 @@ const DEFAULTS = {
   dist: 500, alt: 17000, 'wind-spd': 0,
   'ff-climb': 37, 'ff-cruise': 32, 'ff-desc': 10,
   'climb-rate': 1400, 'desc-rate': 1000, tas: 280,
-  'dep-icao': 'KGYR', 'arr-icao': 'KAFO'
+  'dep-icao': 'KAFO', 'arr-icao': 'KGEU'
 };
 
 const alts = [5000,8000,10000,12000,14000,17000,19000,21000,23000,25000,28000];
@@ -773,7 +957,7 @@ function update(){
   // Show real-data indicator if override is active
   var realIndEl = document.getElementById('real-data-badge');
   if (realIndEl) {
-    var hasReal = (typeof getRealPerfAtAlt !== 'undefined') && getRealPerfAtAlt(alt) !== null;
+    var hasReal = (typeof getRealPerfAtAlt !== 'undefined') && getRealPerfAtAlt(alt, currentIsaDev) !== null;
     realIndEl.style.display = hasReal ? 'inline-block' : 'none';
   }
   document.getElementById('r-dfuel').textContent       = r.descGal;
@@ -782,6 +966,20 @@ function update(){
   document.getElementById('r-desc-tas').textContent    = r.avgDesTas;
   document.getElementById('r-total').textContent       = r.totalGal;
   document.getElementById('r-ttime').textContent       = fmtTime(r.totalMins);
+  // Cache planned values for flight log
+  lastPlan = {
+    dep:      document.getElementById('dep-icao').value.trim().toUpperCase() || '—',
+    arr:      document.getElementById('arr-icao').value.trim().toUpperCase() || '—',
+    alt:      alt,
+    dist:     dist,
+    tas:      Math.round(tasEff),
+    ff:       +ffCruiseEff.toFixed(1),
+    cruiseMins: r.cruiseMins,
+    cruiseGal:  r.cruiseGal,
+    totalGal:   r.totalGal,
+    totalMins:  r.totalMins,
+  };
+  try { localStorage.setItem(PLAN_KEY, JSON.stringify(lastPlan)); } catch(e) {}
 
   // ── Fuel planning ─────────────────────────────────────────────────────────
   const minStart = +(r.totalGal+fixedCosts).toFixed(1);
@@ -877,7 +1075,7 @@ function update(){
         responsive:true, maintainAspectRatio:false,
         plugins:{legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y===0?'cannot reach altitude':ctx.parsed.y+' gal'}}},
         scales:{
-          x:{ticks:{font:{size:11}, autoSkip:false, color:tc}, grid:{display:false}},
+          x:{ticks:{font:{size:11}, autoSkip:true, maxRotation:0, color:tc}, grid:{display:false}},
           y:{ticks:{font:{size:11}, color:tc}, grid:{color:gc}, title:{display:true, text:'total fuel (gal)', font:{size:11}, color:tc}}
         }
       }
@@ -900,10 +1098,26 @@ function resetDefaults(){
     airportCoords.dep=null; airportCoords.arr=null;
   }
   if(typeof updateAirportDistance !== 'undefined') updateAirportDistance();
+  // Clear stale winds display and cached winds data
+  var windsWx = document.getElementById('winds-wx');
+  if(windsWx){ windsWx.style.display='none'; windsWx.innerHTML=''; }
+  if(typeof cachedWindsData !== 'undefined'){
+    cachedWindsData.dep=null; cachedWindsData.mid=null;
+    cachedWindsData.arr=null; cachedWindsData.routeHdg=null; cachedWindsData.isaDev=null;
+  }
   var tasEl = document.getElementById('tas');
   var ffEl  = document.getElementById('ff-cruise');
   if (tasEl) delete tasEl.dataset.userEdited;
   if (ffEl)  delete ffEl.dataset.userEdited;
+  // Clear persisted plan on Reset
+  lastPlan = null;
+  try { localStorage.removeItem(PLAN_KEY); } catch(e) {}
+  // Reset descent toggle to Eco (default ff-desc=10)
+  descModeOverride = 'eco';
+  var ecoBtn = document.getElementById('desc-eco-btn');
+  var hiBtn  = document.getElementById('desc-hi-btn');
+  if (ecoBtn) { ecoBtn.style.background='var(--blue-bg)'; ecoBtn.style.color='var(--blue-text)'; }
+  if (hiBtn)  { hiBtn.style.background='var(--bg2)';      hiBtn.style.color='var(--text2)'; }
   update();
 }
 
@@ -920,6 +1134,14 @@ document.getElementById('ff-cruise').addEventListener('input', function(){
   clearTimeout(_ffDebounce);
   _ffDebounce = setTimeout(update, 600);
 });
+document.getElementById('ff-desc').addEventListener('input', function(){
+  // User typed manually — clear toggle highlight
+  descModeOverride = null;
+  var ecoBtn = document.getElementById('desc-eco-btn');
+  var hiBtn  = document.getElementById('desc-hi-btn');
+  if (ecoBtn) { ecoBtn.style.background='var(--bg2)'; ecoBtn.style.color='var(--text2)'; }
+  if (hiBtn)  { hiBtn.style.background='var(--bg2)';  hiBtn.style.color='var(--text2)'; }
+});
 // Alt slider: apply real data to fields first, then update
 document.getElementById('alt').addEventListener('input', function(){
   applyRealPerfToFields(parseInt(this.value));
@@ -933,10 +1155,50 @@ document.querySelectorAll('input,select').forEach(function(el){
 });
 window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',update);
 update();
+// Apply real perf data to fields on initial load (alt slider hasn't moved yet)
+applyRealPerfToFields(DEFAULTS.alt);
 
 document.getElementById('dep-icao').addEventListener('keydown', function(e){ if(e.key==='Enter') fetchAirport('dep'); });
 document.getElementById('arr-icao').addEventListener('keydown', function(e){ if(e.key==='Enter') fetchAirport('arr'); });
 
+// Initialize descent toggle visual to Eco on first load
+descModeOverride = 'eco';
+(function(){
+  var ecoBtn = document.getElementById('desc-eco-btn');
+  var hiBtn  = document.getElementById('desc-hi-btn');
+  if (ecoBtn) { ecoBtn.style.background='var(--blue-bg)'; ecoBtn.style.color='var(--blue-text)'; }
+  if (hiBtn)  { hiBtn.style.background='var(--bg2)';      hiBtn.style.color='var(--text2)'; }
+})();
+
+// ── Descent mode toggle ────────────────────────────────────────────────────
+var descModeOverride = null; // null = user typed manually; 'eco' or 'hi' = toggle active
+function setDescMode(mode) {
+  var el = document.getElementById('ff-desc');
+  var ecoBtn = document.getElementById('desc-eco-btn');
+  var hiBtn  = document.getElementById('desc-hi-btn');
+  if (!el) return;
+  descModeOverride = mode;
+  if (mode === 'eco') {
+    el.value = 10;
+    ecoBtn.style.background = 'var(--blue-bg)';   ecoBtn.style.color = 'var(--blue-text)';
+    hiBtn.style.background  = 'var(--bg2)';        hiBtn.style.color  = 'var(--text2)';
+  } else {
+    el.value = 30;
+    hiBtn.style.background  = 'var(--blue-bg)';   hiBtn.style.color = 'var(--blue-text)';
+    ecoBtn.style.background = 'var(--bg2)';        ecoBtn.style.color = 'var(--text2)';
+  }
+  update();
+}
+
+// Last planned values — read by the flight log page
+// Persist lastPlan across sessions so Act vs Plan works after app restart
+var PLAN_KEY = 'propjet_last_plan';
+var lastPlan = (function(){
+  try { return JSON.parse(localStorage.getItem(PLAN_KEY)) || null; }
+  catch(e) { return null; }
+})();
+
+window.setDescMode = setDescMode;
 window.update = update;
 window.applyRealPerfToFields = applyRealPerfToFields;
 
@@ -1010,7 +1272,7 @@ function fetchAirport(which) {
     wxEl.innerHTML = '<span style="color:#A32D2D;">Enter a valid ICAO identifier (e.g. KGYR)</span>';
     return;
   }
-  btn.textContent = '...';
+  btn.textContent = '…';
   btn.disabled = true;
   var key = 'd95164f28f8c457099dca7e7488acddf';
   var stationUrl = 'https://api.checkwx.com/station/' + icao + '?x-api-key=' + key;
@@ -1027,7 +1289,7 @@ function fetchAirport(which) {
     if (!station) {
       wxEl.style.display = 'block';
       wxEl.innerHTML = '<span style="color:#A32D2D;">Airport not found: ' + icao + '</span>';
-      btn.textContent = 'Fetch'; btn.disabled = false;
+      btn.textContent = 'Load'; btn.disabled = false;
       return;
     }
     var elev = station.elevation && station.elevation.feet;
@@ -1083,11 +1345,11 @@ function fetchAirport(which) {
     }
     wxEl.innerHTML = html;
     wxEl.style.display = 'block';
-    btn.textContent = 'Fetch'; btn.disabled = false;
+    btn.textContent = 'Load'; btn.disabled = false;
   }).catch(function() {
     wxEl.style.display = 'block';
-    wxEl.innerHTML = '<span style="color:#A32D2D;">Fetch failed — check connection</span>';
-    btn.textContent = 'Fetch'; btn.disabled = false;
+    wxEl.innerHTML = '<span style="color:#A32D2D;">Load failed — check connection</span>';
+    btn.textContent = 'Load'; btn.disabled = false;
   });
 }
 
@@ -1205,7 +1467,7 @@ function fetchWindsAloft() {
     return;
   }
 
-  if (btn) { btn.textContent = '...'; btn.disabled = true; }
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
 
   var lat1=airportCoords.dep.lat, lon1=airportCoords.dep.lon;
   var lat2=airportCoords.arr.lat, lon2=airportCoords.arr.lon;
@@ -1353,12 +1615,12 @@ function fetchWindsAloft() {
 
     wxEl.innerHTML = html;
     wxEl.style.display = 'block';
-    if (btn) { btn.textContent = 'Fetch'; btn.disabled = false; }
+    if (btn) { btn.textContent = 'Load'; btn.disabled = false; }
 
   }).catch(function(err) {
     wxEl.style.display = 'block';
-    wxEl.innerHTML = '<span style="color:#A32D2D;">Winds fetch failed — check connection</span>';
-    if (btn) { btn.textContent = 'Fetch'; btn.disabled = false; }
+    wxEl.innerHTML = '<span style="color:#A32D2D;">Load failed — check connection</span>';
+    if (btn) { btn.textContent = 'Load'; btn.disabled = false; }
   });
 }
 
@@ -1439,11 +1701,17 @@ function getRealPerfAtAlt(altFt, currentIsaDev) {
 function showTab(name) {
   document.getElementById('tab-plan').style.display = name==='plan' ? 'block' : 'none';
   document.getElementById('tab-perf').style.display = name==='perf' ? 'block' : 'none';
-  var btn = document.getElementById('tab-perf-btn');
-  if (btn) btn.classList.toggle('active', name==='perf');
+  var logTab = document.getElementById('tab-log');
+  if (logTab) logTab.style.display = name==='log' ? 'block' : 'none';
+  // Update bottom nav active state
+  ['plan','perf','log'].forEach(function(t) {
+    var btn = document.getElementById('tab-'+t+'-btn');
+    if (btn) btn.classList.toggle('active', t===name);
+  });
   var resetBtn = document.getElementById('reset-btn');
-  if (resetBtn) resetBtn.style.display = name==='perf' ? 'none' : '';
+  if (resetBtn) resetBtn.style.display = (name==='perf'||name==='log') ? 'none' : '';
   if (name==='perf') refreshPerfPage();
+  if (name==='log') { populateLogForm(); refreshLogPage(); }
 }
 
 // ── Save a data point ─────────────────────────────────────────────────────────
@@ -1638,6 +1906,285 @@ function renderPerfChart() {
     });
   }
 }
+
+// ── Export performance data as CSV ───────────────────────────────────────────
+function exportPerfCSV() {
+  var data = loadPerfData();
+  if (!data.length) { alert('No performance data to export.'); return; }
+  var csv = 'Date,Altitude (ft),TAS (kts),Fuel Flow (gph),ISA Dev (C)\n';
+  data.forEach(function(d) {
+    csv += [d.date, d.alt, d.tas, d.ff, d.isa].join(',') + '\n';
+  });
+  var blob = new Blob([csv], {type:'text/csv'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url;
+  a.download = 'propjet_perf_' + new Date().toISOString().slice(0,10) + '.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ── Import performance data from CSV ─────────────────────────────────────────
+function importPerfCSV(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var msg = document.getElementById('import-msg');
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var lines = e.target.result.split(/\r?\n/).filter(function(l){ return l.trim(); });
+    if (lines.length < 2) {
+      msg.style.display='block'; msg.style.background='var(--red-bg)'; msg.style.color='var(--red-text)';
+      msg.textContent='CSV appears empty or invalid.'; return;
+    }
+    var imported=[]; var skipped=0;
+    for (var i=1; i<lines.length; i++) {
+      var cols=lines[i].split(',');
+      if (cols.length<5) { skipped++; continue; }
+      var alt=parseInt(cols[1]), tas=parseFloat(cols[2]),
+          ff=parseFloat(cols[3]), isa=parseFloat(cols[4]);
+      if (isNaN(alt)||isNaN(tas)||isNaN(ff)||isNaN(isa)) { skipped++; continue; }
+      imported.push({alt:alt, tas:tas, ff:ff, isa:isa,
+        date: cols[0].trim() || new Date().toISOString().slice(0,10)});
+    }
+    if (!imported.length) {
+      msg.style.display='block'; msg.style.background='var(--red-bg)'; msg.style.color='var(--red-text)';
+      msg.textContent='No valid rows found. Check CSV format.'; return;
+    }
+    var existing=loadPerfData(); var added=0;
+    imported.forEach(function(row) {
+      var dup=existing.some(function(e){
+        return e.alt===row.alt&&e.tas===row.tas&&e.ff===row.ff&&e.isa===row.isa&&e.date===row.date;
+      });
+      if (!dup) { existing.push(row); added++; }
+    });
+    existing.sort(function(a,b){ return a.alt-b.alt; });
+    savePerfData(existing);
+    msg.style.display='block'; msg.style.background='var(--green-bg)'; msg.style.color='var(--green-text)';
+    msg.textContent='Imported '+added+' new data point'+(added!==1?'s':'')+
+      (skipped?' ('+skipped+' row'+(skipped!==1?'s':'')+' skipped)':'')+'.';
+    refreshPerfPage(); if (window.update) window.update();
+    input.value='';
+  };
+  reader.onerror = function() {
+    msg.style.display='block'; msg.style.background='var(--red-bg)'; msg.style.color='var(--red-text)';
+    msg.textContent='Failed to read file.';
+  };
+  reader.readAsText(file);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// FLIGHT LOG
+// ══════════════════════════════════════════════════════════════════════════════
+var LOG_KEY = 'propjet_flight_log';
+
+function loadFlightLog() {
+  try { return JSON.parse(localStorage.getItem(LOG_KEY)) || []; } catch(e) { return []; }
+}
+function saveFlightLog_data(data) { localStorage.setItem(LOG_KEY, JSON.stringify(data)); }
+
+function populateLogForm() {
+  // Pre-fill date with today
+  var dateEl = document.getElementById('log-date');
+  if (dateEl && !dateEl.value) dateEl.value = new Date().toISOString().slice(0,10);
+  // Pre-fill dep/arr from planner
+  var dep = document.getElementById('dep-icao');
+  var arr = document.getElementById('arr-icao');
+  var logDep = document.getElementById('log-dep');
+  var logArr = document.getElementById('log-arr');
+  if (dep && logDep && !logDep.value) logDep.value = dep.value.trim().toUpperCase();
+  if (arr && logArr && !logArr.value) logArr.value = arr.value.trim().toUpperCase();
+  // Populate planned column from lastPlan
+  updateLogPlanned();
+}
+
+function updateLogPlanned() {
+  var p = (typeof lastPlan !== 'undefined') ? lastPlan : null;
+  document.getElementById('log-plan-alt').textContent = p ? p.alt.toLocaleString() : '—';
+  document.getElementById('log-plan-tas').textContent = p ? p.tas : '—';
+  document.getElementById('log-plan-ff').textContent  = p ? p.ff  : '—';
+  updateLogDeltas();
+}
+
+function updateLogDeltas() {
+  var p = (typeof lastPlan !== 'undefined') ? lastPlan : null;
+  function delta(plannedEl, actualId, suffix, decimals) {
+    var actEl = document.getElementById(actualId);
+    var deltaEl = document.getElementById('log-delta-' + suffix);
+    if (!actEl || !deltaEl) return;
+    var act = parseFloat(actEl.value);
+    var plan = p ? parseFloat(plannedEl) : NaN;
+    if (isNaN(act) || isNaN(plan)) { deltaEl.textContent = '—'; deltaEl.style.color=''; return; }
+    var d = act - plan;
+    var sign = d >= 0 ? '+' : '';
+    var str = sign + d.toFixed(decimals);
+    deltaEl.textContent = str;
+    deltaEl.style.color = Math.abs(d) < 0.01 ? '' :
+      (suffix === 'tas' ? (d > 0 ? 'var(--green-label)' : 'var(--red-label)') :
+       suffix === 'ff'  ? (d < 0 ? 'var(--green-label)' : 'var(--red-label)') :
+       'var(--text2)');
+  }
+  if (p) {
+    delta(p.alt, 'log-act-alt', 'alt', 0);
+    delta(p.tas, 'log-act-tas', 'tas', 0);
+    delta(p.ff,  'log-act-ff',  'ff',  1);
+  }
+  // Show perf data notice if act TAS, FF, ISA are all filled
+  var actTas = parseFloat(document.getElementById('log-act-tas').value);
+  var actFf  = parseFloat(document.getElementById('log-act-ff').value);
+  var actIsa = parseFloat(document.getElementById('log-act-isa').value);
+  var actAlt = parseFloat(document.getElementById('log-act-alt').value);
+  var notice = document.getElementById('log-perf-notice');
+  if (notice) notice.style.display =
+    (!isNaN(actTas) && !isNaN(actFf) && !isNaN(actIsa) && !isNaN(actAlt)) ? 'block' : 'none';
+}
+
+function saveFlightLog() {
+  var p = (typeof lastPlan !== 'undefined') ? lastPlan : null;
+  var date   = document.getElementById('log-date').value;
+  var dep    = document.getElementById('log-dep').value.trim().toUpperCase();
+  var arr    = document.getElementById('log-arr').value.trim().toUpperCase();
+  var actAlt = parseFloat(document.getElementById('log-act-alt').value);
+  var actTas = parseFloat(document.getElementById('log-act-tas').value);
+  var actFf  = parseFloat(document.getElementById('log-act-ff').value);
+  var actIsa = parseFloat(document.getElementById('log-act-isa').value);
+  var actItt = parseFloat(document.getElementById('log-act-itt').value);
+  var msg = document.getElementById('log-msg');
+
+  if (!date || isNaN(actAlt) || isNaN(actTas) || isNaN(actFf)) {
+    msg.style.display='block'; msg.style.background='var(--red-bg)'; msg.style.color='var(--red-text)';
+    msg.textContent='Please fill in date, actual altitude, TAS, and fuel flow.'; return;
+  }
+
+  var entry = {
+    date: date, dep: dep, arr: arr,
+    planAlt: p ? p.alt : null, planTas: p ? p.tas : null, planFf: p ? p.ff : null,
+    actAlt: Math.round(actAlt), actTas: +actTas.toFixed(1), actFf: +actFf.toFixed(2),
+    actIsa: isNaN(actIsa) ? null : +actIsa.toFixed(1),
+    actItt: isNaN(actItt) ? null : Math.round(actItt),
+    deltaTas: p ? +(actTas - p.tas).toFixed(1) : null,
+    deltaFf:  p ? +(actFf  - p.ff).toFixed(2)  : null,
+  };
+
+  var logs = loadFlightLog();
+  logs.unshift(entry); // newest first
+  saveFlightLog_data(logs);
+
+  // Auto-add to perf data if ISA dev is present
+  if (!isNaN(actIsa)) {
+    var perfData = loadPerfData();
+    var newPt = { alt: entry.actAlt, tas: entry.actTas, ff: entry.actFf,
+                  isa: entry.actIsa, date: date };
+    var dup = perfData.some(function(e){
+      return e.alt===newPt.alt && e.tas===newPt.tas && e.ff===newPt.ff &&
+             e.isa===newPt.isa && e.date===newPt.date;
+    });
+    if (!dup) {
+      perfData.push(newPt);
+      perfData.sort(function(a,b){ return a.alt-b.alt; });
+      savePerfData(perfData);
+      if (window.update) window.update();
+    }
+  }
+
+  msg.style.display='block'; msg.style.background='var(--green-bg)'; msg.style.color='var(--green-text)';
+  msg.textContent='Flight logged' + (!isNaN(actIsa) ? ' and added to Perf Data.' : '.');
+
+  // Clear actual fields (keep date/dep/arr for next leg)
+  ['log-act-alt','log-act-tas','log-act-ff','log-act-isa','log-act-itt'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  refreshLogPage();
+}
+
+function clearFlightLog() {
+  if (!confirm('Delete all flight log entries?')) return;
+  localStorage.removeItem(LOG_KEY);
+  refreshLogPage();
+}
+
+function refreshLogPage() {
+  renderLogTable();
+}
+
+function renderLogTable() {
+  var logs = loadFlightLog();
+  var wrap = document.getElementById('log-table-wrap');
+  if (!wrap) return;
+  if (!logs.length) {
+    wrap.innerHTML = '<p style="font-size:13px;color:var(--text3);">No flights logged yet.</p>';
+    return;
+  }
+  function dColor(d, higherIsBetter) {
+    if (d === null || d === undefined || Math.abs(d) < 0.5) return 'color:var(--text)';
+    return higherIsBetter
+      ? (d > 0 ? 'color:var(--green-label)' : 'color:var(--red-label)')
+      : (d < 0 ? 'color:var(--green-label)' : 'color:var(--red-label)');
+  }
+  var html = '';
+  logs.forEach(function(e, i) {
+    var isaStr = (e.actIsa !== null && e.actIsa !== undefined)
+      ? (e.actIsa >= 0 ? '+' : '') + e.actIsa + '°C' : '—';
+    var ittStr = e.actItt ? e.actItt + '°C' : '—';
+    // Build comparison chips
+    function chip(label, plan, act, delta, higherIsBetter, unit) {
+      var deltaStr = delta !== null && delta !== undefined
+        ? '<span style="font-size:11px;' + dColor(delta,higherIsBetter) + '">'
+          + (delta >= 0 ? '+' : '') + delta + '</span>'
+        : '';
+      return '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:10px;color:var(--text3);margin-bottom:2px;">' + label + '</div>'
+        + '<div style="font-size:12px;font-weight:500;">'
+        + (act !== undefined && act !== null ? act + '<span style="font-size:10px;color:var(--text3);">' + unit + '</span>' : '—')
+        + '</div>'
+        + (plan !== null ? '<div style="font-size:10px;color:var(--text3);">plan ' + plan + ' ' + deltaStr + '</div>' : '')
+        + '</div>';
+    }
+    html += '<div style="padding:10px 0;border-bottom:0.5px solid var(--border);">'
+      // Header row: date + route + delete
+      + '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;">'
+      + '<div>'
+      + '<span style="font-size:12px;font-weight:500;color:var(--text);">'
+        + (e.dep||'—') + ' → ' + (e.arr||'—') + '</span>'
+      + '<span style="font-size:11px;color:var(--text3);margin-left:8px;">' + e.date + '</span>'
+      + '</div>'
+      + '<button onclick="deleteLogEntry(' + i + ')" style="font-size:11px;padding:2px 8px;'
+      + 'border-radius:4px;border:0.5px solid var(--border2);background:transparent;'
+      + 'color:var(--red-label);cursor:pointer;flex-shrink:0;">✕</button>'
+      + '</div>'
+      // Data chips row
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+      + chip('Alt (ft)', e.planAlt ? e.planAlt.toLocaleString() : null,
+             e.actAlt ? e.actAlt.toLocaleString() : null, null, null, '')
+      + chip('TAS', e.planTas, e.actTas, e.deltaTas, true, ' kts')
+      + chip('FF', e.planFf, e.actFf, e.deltaFf, false, ' gph')
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:10px;color:var(--text3);margin-bottom:2px;">ISA dev</div>'
+        + '<div style="font-size:12px;font-weight:500;">' + isaStr + '</div>'
+        + '</div>'
+      + '<div style="flex:1;min-width:0;">'
+        + '<div style="font-size:10px;color:var(--text3);margin-bottom:2px;">ITT</div>'
+        + '<div style="font-size:12px;font-weight:500;">' + ittStr + '</div>'
+        + '</div>'
+      + '</div>'
+      + '</div>';
+  });
+  wrap.innerHTML = html;
+}
+
+function deleteLogEntry(idx) {
+  var logs = loadFlightLog();
+  logs.splice(idx, 1);
+  saveFlightLog_data(logs);
+  renderLogTable();
+}
+
+window.populateLogForm  = populateLogForm;
+window.updateLogDeltas  = updateLogDeltas;
+window.saveFlightLog    = saveFlightLog;
+window.clearFlightLog   = clearFlightLog;
+window.deleteLogEntry   = deleteLogEntry;
+
 </script>
 
 <script>
@@ -1655,5 +2202,27 @@ function loadChart(src, cb) {
 }
 loadChart('chart.umd.js', function() { init(); });
 </script>
+<nav class="bottom-nav" id="bottom-nav">
+  <button id="tab-plan-btn" class="active" onclick="showTab('plan')">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 14.5h14M3 10h10M3 5.5h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    Planner
+  </button>
+  <button id="tab-perf-btn" onclick="showTab('perf')">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 16L7 10l3 3 4-6 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Perf Data
+  </button>
+  <button id="tab-log-btn" onclick="showTab('log')">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="4" y="3" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
+      <path d="M7 7h6M7 10h6M7 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    Act vs Plan
+  </button>
+</nav>
+
 </body>
 </html>

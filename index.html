@@ -316,7 +316,7 @@
 <header>
   <div>
     <h1>PropJet Go</h1>
-    <p>M601 altitude &amp; fuel planning</p>
+    <p>Lancair IV-PT Performance Planner</p>
   </div>
   <div style="display:flex;align-items:center;gap:8px;">
     <button class="reset-btn" id="reset-btn">Reset</button>
@@ -412,9 +412,9 @@
   </div>
 
   <div class="card">
-    <div class="section-label">Fuel on board &amp; reserves</div>
+    <div class="section-label">Initial Fuel Load &amp; reserves</div>
     <div class="row">
-      <label>Fuel on board (gal)</label>
+      <label>Initial fuel load (gal)</label>
       <input type="number" id="fob" value="145" min="0" max="145" step="1" onfocus="this.select()" inputmode="decimal">
       <span class="hint">useable max 145</span>
     </div>
@@ -659,7 +659,13 @@
 <div class="container">
 
   <div class="card">
-    <div class="section-label">Log actual flight data</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+      <div class="section-label" style="margin:0;">Log actual flight data</div>
+      <button onclick="clearLogForm()"
+        style="font-size:12px;padding:4px 10px;border-radius:var(--radius);border:0.5px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;">
+        Clear form
+      </button>
+    </div>
     <p class="note" style="margin-bottom:1rem;">Planned values are pulled from the current planner. Enter what actually happened. Saving auto-adds TAS, FF, and ISA dev to your Perf Data table.</p>
 
     <!-- Route & Date -->
@@ -1213,7 +1219,7 @@ function setDescMode(mode) {
     ecoBtn.style.background = 'var(--blue-bg)';   ecoBtn.style.color = 'var(--blue-text)';
     hiBtn.style.background  = 'var(--bg2)';        hiBtn.style.color  = 'var(--text2)';
   } else {
-    el.value = 30;
+    el.value = 25;
     hiBtn.style.background  = 'var(--blue-bg)';   hiBtn.style.color = 'var(--blue-text)';
     ecoBtn.style.background = 'var(--bg2)';        ecoBtn.style.color = 'var(--text2)';
   }
@@ -1724,6 +1730,48 @@ function evaluate123Rule() {
   }
 }
 window.evaluate123Rule = evaluate123Rule;
+
+// ── Alternate airport weather legality (1-2-3 rule applied to alternate) ─────
+// For IFR alternate: standard alternate minimums require either:
+//   Precision approach: ceil ≥800ft, vis ≥2sm
+//   Non-precision approach: ceil ≥1000ft, vis ≥2sm  (we use 1000/2 as conservative default)
+// Simplified: we apply 1000ft / 2sm as the standard alternate wx minimum,
+// flagging if current METAR or TAF shows conditions below this threshold.
+function evaluateAltWx(metar, taf) {
+  var gng = document.getElementById('alt-wx-gng');
+  if (!gng) return;
+  if (!metar && !taf) { gng.style.display='none'; return; }
+  // Extract ceiling and vis from metar
+  var ceilFt=null, visMi=null;
+  if (metar) {
+    ceilFt = metar.ceiling ? metar.ceiling.feet : null;
+    visMi  = metar.visibility ? metar.visibility.miles_float : null;
+    if (ceilFt===null && metar.clouds && metar.clouds.length) {
+      var clrLayer=metar.clouds.find(function(c){return c.code==='CLR'||c.code==='SKC'||c.code==='CAVOK';});
+      if (clrLayer) ceilFt=9999;
+    }
+  }
+  var ceilOk = (ceilFt!==null) && (ceilFt>=1000);
+  var visOk  = (visMi !==null) && (visMi >=2.0);
+  var wxLegal = ceilOk && visOk;
+  var unknown = (ceilFt===null || visMi===null);
+  gng.style.display='block';
+  if (unknown) {
+    gng.style.background='var(--amber-bg)'; gng.style.color='var(--amber-label)';
+    gng.textContent='⚠ ALT WX UNKNOWN — verify ceiling ≥1000ft & vis ≥2sm';
+  } else if (wxLegal) {
+    gng.style.background='var(--green-bg)'; gng.style.color='var(--green-label)';
+    var catStr = (metar && metar.flight_category) ? ' (' + metar.flight_category + ')' : '';
+    gng.textContent='✓ ALTERNATE WX LEGAL — ceil '+Math.round(ceilFt)+'ft, vis '+visMi+'sm'+catStr;
+  } else {
+    gng.style.background='var(--red-bg)'; gng.style.color='var(--red-label)';
+    var reasons=[];
+    if (!ceilOk) reasons.push('ceil '+(ceilFt!==null?Math.round(ceilFt)+'ft':'unknown')+' < 1000ft');
+    if (!visOk)  reasons.push('vis ' +(visMi !==null?visMi+'sm'         :'unknown')+' < 2sm');
+    gng.textContent='✗ ALTERNATE WX NOT LEGAL — '+reasons.join(', ');
+  }
+}
+window.evaluateAltWx = evaluateAltWx;
 </script>
 
 <script>
@@ -2006,10 +2054,12 @@ function fetchAltAirport() {
   var key = 'd95164f28f8c457099dca7e7488acddf';
   Promise.all([
     fetch('https://api.checkwx.com/station/'+icao+'?x-api-key='+key).then(function(r){return r.json();}),
-    fetch('https://api.checkwx.com/metar/'+icao+'/decoded?x-api-key='+key).then(function(r){return r.json();})
+    fetch('https://api.checkwx.com/metar/'+icao+'/decoded?x-api-key='+key).then(function(r){return r.json();}),
+    fetch('https://api.checkwx.com/taf/'+icao+'?x-api-key='+key).then(function(r){return r.json();})
   ]).then(function(results) {
     var station=results[0].data&&results[0].data[0];
     var metar  =results[1].data&&results[1].data[0];
+    var altTaf =results[2].data&&results[2].data[0];
     if (!station) {
       wxEl.style.display='block';
       wxEl.innerHTML='<span style="color:#A32D2D;">Airport not found: '+icao+'</span>';
@@ -2070,7 +2120,13 @@ function fetchAltAirport() {
       if (details) html+='<div>'+details+'</div>';
       if (obs) html+='<div style="color:var(--text3);font-size:11px;margin-top:2px;">Observed '+obs+'</div>';
     } else { html+='<div style="color:var(--text3);">No METAR available</div>'; }
+    // Append TAF if available
+    if (altTaf && typeof altTaf === 'string') {
+      html += '<div style="margin-top:6px;padding-top:6px;border-top:0.5px solid var(--border);font-size:11px;color:var(--text3);word-break:break-all;">TAF: '+altTaf+'</div>';
+    }
     wxEl.innerHTML=html; wxEl.style.display='block';
+    // Evaluate alternate weather legality using 1-2-3 rule
+    evaluateAltWx(metar, altTaf);
     btn.textContent='Load'; btn.disabled=false;
     refreshAltPlan();
   }).catch(function() {
@@ -2156,7 +2212,7 @@ function refreshAltPlan() {
   document.getElementById('fc-dest-fuel').textContent = destFuel !== null ? destFuel : '—';
   document.getElementById('fc-alt-burn').textContent  = divert.totalGal+' div';
   document.getElementById('fc-alt-fuel').textContent  = altArrFuel !== null ? altArrFuel : '—';
-  document.getElementById('fc-reserve-burn').textContent = reserveGal+' resv';
+  document.getElementById('fc-reserve-burn').textContent = reserveGal+' reserve';
   var fcMarginEl = document.getElementById('fc-margin');
   fcMarginEl.textContent = altMargin !== null ? altMargin : '—';
   fcMarginEl.style.color = altMargin===null?''
@@ -2208,13 +2264,13 @@ function refreshAltPlan() {
     gng.style.display = 'block';
     if (altMargin >= 10) {
       gng.style.background='var(--green-bg)'; gng.style.color='var(--green-label)';
-      gng.textContent = '✓ ALTERNATE LEGAL — '+altMargin+' gal above your reserve';
+      gng.textContent = '✓ ALTERNATE FUEL LEGAL — '+altMargin+' gal above your reserve';
     } else if (altMargin >= 0) {
       gng.style.background='var(--amber-bg)'; gng.style.color='var(--amber-label)';
-      gng.textContent = '⚠ MARGINAL — only '+altMargin+' gal above your reserve';
+      gng.textContent = '⚠ FUEL MARGINAL — only '+altMargin+' gal above your reserve';
     } else {
       gng.style.background='var(--red-bg)'; gng.style.color='var(--red-label)';
-      gng.textContent = '✗ NOT LEGAL — '+Math.abs(altMargin)+' gal short of your reserve';
+      gng.textContent = '✗ FUEL NOT LEGAL — '+Math.abs(altMargin)+' gal short of your reserve';
     }
   } else {
     gng.style.display='none';
@@ -2518,6 +2574,23 @@ function deleteLogEntry(idx) {
   renderLogTable();
 }
 
+function clearLogForm() {
+  // Clear all actual entry fields but keep date/dep/arr
+  ['log-act-alt','log-act-tas','log-act-ff','log-act-isa','log-act-itt'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.value='';
+  });
+  // Reset deltas
+  ['log-delta-alt','log-delta-tas','log-delta-ff'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el){ el.textContent='—'; el.style.color=''; }
+  });
+  // Hide perf notice and message
+  var notice=document.getElementById('log-perf-notice');
+  if(notice) notice.style.display='none';
+  var msg=document.getElementById('log-msg');
+  if(msg) msg.style.display='none';
+}
+
 window.populateLogForm  = populateLogForm;
 window.updateLogDeltas  = updateLogDeltas;
 window.saveFlightLog    = saveFlightLog;
@@ -2594,7 +2667,7 @@ loadChart('chart.umd.js', function() { init(); });
       </select>
     </div>
     <div class="row">
-      <label>Fuel on board (gal)</label>
+      <label>Initial fuel load (gal)</label>
       <input type="number" id="alt-fob" value="145" min="0" max="145" step="1"
         onfocus="this.select()" inputmode="decimal">
       <span class="hint">synced to planner</span>
@@ -2612,28 +2685,40 @@ loadChart('chart.umd.js', function() { init(); });
       <div style="font-size:11px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Fuel chain</div>
       <div style="display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto;">
         <div style="text-align:center;min-width:64px;">
-          <div style="font-size:10px;color:var(--text3);">FOB</div>
+          <div style="font-size:10px;color:var(--text3);">Load</div>
           <div style="font-size:16px;font-weight:500;" id="fc-fob">—</div>
           <div style="font-size:10px;color:var(--text3);">gal</div>
         </div>
-        <div style="flex:1;height:2px;background:var(--border2);min-width:12px;position:relative;">
-          <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text3);white-space:nowrap;" id="fc-trip-burn">— trip</div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:20px;gap:1px;">
+          <div style="font-size:11px;color:var(--text3);white-space:nowrap;" id="fc-trip-burn">— trip</div>
+          <div style="display:flex;align-items:center;width:100%;">
+            <div style="flex:1;height:2px;background:var(--border2);"></div>
+            <div style="font-size:10px;color:var(--border2);line-height:1;">▶</div>
+          </div>
         </div>
         <div style="text-align:center;min-width:64px;">
           <div style="font-size:10px;color:var(--text3);">At dest</div>
           <div style="font-size:16px;font-weight:500;" id="fc-dest-fuel">—</div>
           <div style="font-size:10px;color:var(--text3);">gal</div>
         </div>
-        <div style="flex:1;height:2px;background:var(--border2);min-width:12px;position:relative;">
-          <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text3);white-space:nowrap;" id="fc-alt-burn">— divert</div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:20px;gap:1px;">
+          <div style="font-size:11px;color:var(--text3);white-space:nowrap;" id="fc-alt-burn">— divert</div>
+          <div style="display:flex;align-items:center;width:100%;">
+            <div style="flex:1;height:2px;background:var(--border2);"></div>
+            <div style="font-size:10px;color:var(--border2);line-height:1;">▶</div>
+          </div>
         </div>
         <div style="text-align:center;min-width:64px;">
           <div style="font-size:10px;color:var(--text3);">At alt</div>
           <div style="font-size:16px;font-weight:500;" id="fc-alt-fuel">—</div>
           <div style="font-size:10px;color:var(--text3);">gal</div>
         </div>
-        <div style="flex:1;height:2px;background:var(--border2);min-width:12px;position:relative;">
-          <div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:9px;color:var(--text3);white-space:nowrap;" id="fc-reserve-burn">— resv</div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:20px;gap:1px;">
+          <div style="font-size:11px;color:var(--text3);white-space:nowrap;" id="fc-reserve-burn">— reserve</div>
+          <div style="display:flex;align-items:center;width:100%;">
+            <div style="flex:1;height:2px;background:var(--border2);"></div>
+            <div style="font-size:10px;color:var(--border2);line-height:1;">▶</div>
+          </div>
         </div>
         <div style="text-align:center;min-width:64px;">
           <div style="font-size:10px;color:var(--text3);">Margin</div>
@@ -2655,8 +2740,11 @@ loadChart('chart.umd.js', function() { init(); });
       <div class="metric" id="alt-margin-metric"><div class="m-label">Margin above reserve</div><div class="m-num" id="alt-r-margin">—</div><div class="m-unit">gal</div></div>
     </div>
 
-    <!-- Go/No-Go indicator -->
+    <!-- Go/No-Go: fuel -->
     <div id="alt-gng" style="margin-top:0.875rem;padding:10px 14px;border-radius:var(--radius);font-size:14px;font-weight:500;text-align:center;display:none;"></div>
+
+    <!-- Go/No-Go: weather -->
+    <div id="alt-wx-gng" style="margin-top:6px;padding:10px 14px;border-radius:var(--radius);font-size:13px;font-weight:500;text-align:center;display:none;"></div>
 
     <!-- FAR 91.167 secondary threshold -->
     <div id="alt-far-row" style="display:none;margin-top:0.625rem;padding:8px 12px;border-radius:var(--radius);background:var(--bg2);font-size:12px;color:var(--text2);">
@@ -2681,38 +2769,8 @@ loadChart('chart.umd.js', function() { init(); });
         <div class="metric"><div class="m-label">Divert GS</div><div class="m-num" id="alt-r-gs">—</div><div class="m-unit">kts</div></div>
       </div>
     </div>
+
   </div>
 
 </div>
 </div> <!-- end tab-altplan -->
-
-<nav class="bottom-nav" id="bottom-nav">
-  <button id="tab-plan-btn" class="active" onclick="showTab('plan')">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M3 14.5h14M3 10h10M3 5.5h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-    Planner
-  </button>
-  <button id="tab-altplan-btn" onclick="showTab('altplan')">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M10 3v14M3 10l7-7 7 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    Alternate
-  </button>
-  <button id="tab-perf-btn" onclick="showTab('perf')">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M3 16L7 10l3 3 4-6 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-    Perf Data
-  </button>
-  <button id="tab-log-btn" onclick="showTab('log')">
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <rect x="4" y="3" width="12" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/>
-      <path d="M7 7h6M7 10h6M7 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    </svg>
-    Act vs Plan
-  </button>
-</nav>
-
-</body>
-</html>

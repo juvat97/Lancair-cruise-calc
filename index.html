@@ -468,23 +468,17 @@
     </div>
     <div class="row">
       <label>Descent FF (gph)</label>
-      <div style="display:flex;gap:8px;align-items:center;flex:1;">
-        <input type="number" id="ff-desc" value="10" min="2" max="40" step="0.5" style="flex:1;min-width:0;" onfocus="this.select()" inputmode="decimal">
-        <div style="display:flex;border:0.5px solid var(--border2);border-radius:var(--radius);overflow:hidden;flex-shrink:0;">
-          <button id="desc-eco-btn" onclick="setDescMode('eco')"
-            style="padding:5px 10px;font-size:12px;font-weight:500;border:none;cursor:pointer;background:var(--blue-bg);color:var(--blue-text);">Eco</button>
-          <button id="desc-hi-btn" onclick="setDescMode('hi')"
-            style="padding:5px 10px;font-size:12px;font-weight:500;border:none;cursor:pointer;background:var(--bg2);color:var(--text2);">Hi-Spd</button>
-        </div>
-      </div>
+      <input type="number" id="ff-desc" value="25" min="2" max="40" step="0.5" onfocus="this.select()" inputmode="decimal">
+      <span class="hint">220 KIAS / 1500 fpm</span>
     </div>
     <div class="row">
       <label>Avg climb rate (fpm)</label>
       <input type="number" id="climb-rate" value="1400" min="500" max="5000" step="100" onfocus="this.select()" inputmode="decimal">
     </div>
     <div class="row">
-      <label>Avg descent rate (fpm)</label>
-      <input type="number" id="desc-rate" value="1000" min="200" max="4000" step="100" onfocus="this.select()" inputmode="decimal">
+      <label>Descent VS (fpm)</label>
+      <span class="val" id="desc-vs-display" style="font-size:14px;color:var(--text2);">—</span>
+      <span class="hint">2.5° FPA · varies with alt</span>
     </div>
     <div class="row">
       <label>Cruise TAS (kts)</label>
@@ -515,7 +509,7 @@
       <div class="metric"><div class="m-label">Ground speed</div><div class="m-num" id="r-gs">—</div><div class="m-unit">kts</div></div>
     </div>
 
-    <div class="phase-label">Descent (260 KIAS → KTAS via ISA)</div>
+    <div class="phase-label">Descent (220 KIAS / 2.5° FPA)</div>
     <div class="metric-grid cols4 spacer">
       <div class="metric"><div class="m-label">Fuel</div><div class="m-num" id="r-dfuel">—</div><div class="m-unit">gal</div></div>
       <div class="metric"><div class="m-label">Time</div><div class="m-num" id="r-dtime">—</div><div class="m-unit">hr+min</div></div>
@@ -787,8 +781,8 @@ const DEFAULTS = {
   fob: 145, 'reserve-gph': 38, 'reserve-mins': 60, 'taxi-fuel': 3,
   'alt-dist': 0, 'dep-elev': 1000, 'arr-elev': 1000,
   dist: 500, alt: 22000, 'wind-spd': 0,
-  'ff-climb': 37, 'ff-cruise': 30, 'ff-desc': 10,
-  'climb-rate': 1400, 'desc-rate': 1000, tas: 285,
+  'ff-climb': 37, 'ff-cruise': 30, 'ff-desc': 25,
+  'climb-rate': 1400, tas: 285,
   'dep-icao': 'KAFO', 'arr-icao': 'KGEU'
 };
 
@@ -808,8 +802,9 @@ function densityRatio(altFt) {
 }
 function kiasToKtas(kias,altFt){ return kias/Math.sqrt(densityRatio(altFt)); }
 function avgDescentTas(cAlt,aAlt){
+  // Lancair IV-PT normal descent: 220 KIAS, 1500 fpm, ~25 gph, NP ~1800 rpm
   const mid=(cAlt+aAlt)/2;
-  return (kiasToKtas(260,cAlt)+kiasToKtas(260,mid)+kiasToKtas(260,aAlt))/3;
+  return (kiasToKtas(220,cAlt)+kiasToKtas(220,mid)+kiasToKtas(220,aAlt))/3;
 }
 function fmtTime(m){
   const t=Math.floor(m+0.5), h=Math.floor(t/60);
@@ -831,7 +826,8 @@ function setMetricColor(id,color){
 }
 
 function compute(distNm, cAlt, depElev, arrElev, climbGph, cruiseGph, descGph,
-                 climbRate, descRate, tas, ws, wd) {
+                 climbRate, tas, ws, wd) {
+  // descRate removed — descent VS derived from 2.5° FPA geometry
   // Ground speed and wind component at cruise altitude
   const gs = getGS(tas, ws, wd);
   // ws_signed: positive = headwind (reduces GS), negative = tailwind (increases GS)
@@ -847,12 +843,15 @@ function compute(distNm, cAlt, depElev, arrElev, climbGph, cruiseGph, descGph,
   const climbGroundDist = climbGS * (climbMins / 60);
 
   // ── Descent ──────────────────────────────────────────────────────────────
-  const descDelta     = Math.max(0, cAlt - arrElev);
-  const descMinsRaw   = descDelta / descRate;
-  const avgDesTas     = avgDescentTas(cAlt, arrElev);
-  const descGS        = Math.max(10, avgDesTas - ws_signed);
-  const descAirDistUncapped    = avgDesTas * (descMinsRaw / 60);
-  const descGroundDistUncapped = descGS    * (descMinsRaw / 60);
+  // 2.5° FPA (autopilot VNAV), 220 KIAS, ~25 gph, NP ~1800 rpm
+  // VS is NOT fixed — it's derived from geometry: VS(fpm) = avgTAS × sin(2.5°) × 101.27
+  const FPA_DEG        = 2.5;
+  const descDelta      = Math.max(0, cAlt - arrElev);
+  const avgDesTas      = avgDescentTas(cAlt, arrElev);   // 220 KIAS avg across 3 waypoints
+  const avgDescVS_fpm  = avgDesTas * Math.sin(FPA_DEG * Math.PI / 180) * 101.27;
+  const descMinsRaw    = descDelta / Math.max(1, avgDescVS_fpm);
+  const descGS         = Math.max(10, avgDesTas - ws_signed);
+  const descGroundDistUncapped = descGS * (descMinsRaw / 60);
   const remainAfterClimb       = Math.max(0, distNm - climbGroundDist);
   const descGroundDist = Math.min(descGroundDistUncapped, remainAfterClimb);
   const descMins       = descGroundDist < descGroundDistUncapped
@@ -881,6 +880,7 @@ function compute(distNm, cAlt, depElev, arrElev, climbGph, cruiseGph, descGph,
     descMins:   Math.round(descMins),
     descDist:   Math.round(descGroundDist),
     avgDesTas:  Math.round(avgDesTas),
+    avgDescVS:  Math.round(avgDescVS_fpm),
     totalGal:   +totalGal.toFixed(1),
     totalMins:  totalMins,
     todNm:      Math.round(descGroundDist),
@@ -901,7 +901,6 @@ function update(){
   const ffCruise   = parseFloat(document.getElementById('ff-cruise').value)||32;
   const ffDesc     = parseFloat(document.getElementById('ff-desc').value)||10;
   const climbRate  = parseFloat(document.getElementById('climb-rate').value)||1400;
-  const descRate   = parseFloat(document.getElementById('desc-rate').value)||1000;
   const tas        = parseFloat(document.getElementById('tas').value)||280;
   const fob        = parseFloat(document.getElementById('fob').value)||145;
   const reserveGph = parseFloat(document.getElementById('reserve-gph').value)||38;
@@ -928,7 +927,7 @@ function update(){
     var lo=25, hi=1400;
     for(var i=0; i<20; i++){
       var mid = Math.round((lo+hi)/2);
-      var rT  = compute(mid,alt,depElev,arrElev,ffClimb,ffCruiseEff,ffDesc,climbRate,descRate,tasEff,ws,wd);
+      var rT  = compute(mid,alt,depElev,arrElev,ffClimb,ffCruiseEff,ffDesc,climbRate,tasEff,ws,wd);
       if(rT.totalGal+fixedCosts <= fobAfterTaxi){ maxDist=mid; lo=mid+1; } else { hi=mid-1; }
     }
   }
@@ -947,7 +946,7 @@ function update(){
   document.getElementById('alt-fuel-hint').textContent    = '= '+altFuelGal+' gal';
 
   // ── Compute flight ────────────────────────────────────────────────────────
-  const r = compute(dist,alt,depElev,arrElev,ffClimb,ffCruiseEff,ffDesc,climbRate,descRate,tasEff,ws,wd);
+  const r = compute(dist,alt,depElev,arrElev,ffClimb,ffCruiseEff,ffDesc,climbRate,tasEff,ws,wd);
 
   document.getElementById('r-cfuel').textContent       = r.climbGal;
   document.getElementById('r-ctime').textContent       = fmtTime(r.climbMins);
@@ -968,6 +967,9 @@ function update(){
   document.getElementById('r-dtime').textContent       = fmtTime(r.descMins);
   document.getElementById('r-ddist').textContent       = r.descDist;
   document.getElementById('r-desc-tas').textContent    = r.avgDesTas;
+  // Show computed avg VS from 2.5° FPA in the inputs area
+  var vsDisp = document.getElementById('desc-vs-display');
+  if (vsDisp) vsDisp.textContent = r.avgDescVS ? '~'+r.avgDescVS+' avg' : '—';
   document.getElementById('r-total').textContent       = r.totalGal;
   document.getElementById('r-ttime').textContent       = fmtTime(r.totalMins);
   // Cache planned values for flight log
@@ -1048,7 +1050,7 @@ function update(){
       wsChart = Math.abs(hwComp);
       wdChart = hwComp >= 0 ? 'head' : 'tail';
     }
-    const res = compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,descRate,tasAdj,wsChart,wdChart);
+    const res = compute(dist,a,depElev,arrElev,ffClimb,gph,ffDesc,climbRate,tasAdj,wsChart,wdChart);
     return res.noAlt ? null : res.totalGal;
   });
   const vf    = fuelData.filter(f=>f!==null);
@@ -1117,12 +1119,6 @@ function resetDefaults(){
   // Clear persisted plan on Reset
   lastPlan = null;
   try { localStorage.removeItem(PLAN_KEY); } catch(e) {}
-  // Reset descent toggle to Eco (default ff-desc=10)
-  descModeOverride = 'eco';
-  var ecoBtn = document.getElementById('desc-eco-btn');
-  var hiBtn  = document.getElementById('desc-hi-btn');
-  if (ecoBtn) { ecoBtn.style.background='var(--blue-bg)'; ecoBtn.style.color='var(--blue-text)'; }
-  if (hiBtn)  { hiBtn.style.background='var(--bg2)';      hiBtn.style.color='var(--text2)'; }
   update();
 }
 
@@ -1138,14 +1134,6 @@ document.getElementById('ff-cruise').addEventListener('input', function(){
   this.dataset.userEdited = '1';
   clearTimeout(_ffDebounce);
   _ffDebounce = setTimeout(update, 600);
-});
-document.getElementById('ff-desc').addEventListener('input', function(){
-  // User typed manually — clear toggle highlight
-  descModeOverride = null;
-  var ecoBtn = document.getElementById('desc-eco-btn');
-  var hiBtn  = document.getElementById('desc-hi-btn');
-  if (ecoBtn) { ecoBtn.style.background='var(--bg2)'; ecoBtn.style.color='var(--text2)'; }
-  if (hiBtn)  { hiBtn.style.background='var(--bg2)';  hiBtn.style.color='var(--text2)'; }
 });
 // Alt slider: apply real data to fields first, then update
 document.getElementById('alt').addEventListener('input', function(){
@@ -1194,34 +1182,7 @@ document.getElementById('alt-fob') && document.getElementById('alt-fob').addEven
   refreshAltPlan();
 });
 
-// Initialize descent toggle visual to Eco on first load
-descModeOverride = 'eco';
-(function(){
-  var ecoBtn = document.getElementById('desc-eco-btn');
-  var hiBtn  = document.getElementById('desc-hi-btn');
-  if (ecoBtn) { ecoBtn.style.background='var(--blue-bg)'; ecoBtn.style.color='var(--blue-text)'; }
-  if (hiBtn)  { hiBtn.style.background='var(--bg2)';      hiBtn.style.color='var(--text2)'; }
-})();
 
-// ── Descent mode toggle ────────────────────────────────────────────────────
-var descModeOverride = null; // null = user typed manually; 'eco' or 'hi' = toggle active
-function setDescMode(mode) {
-  var el = document.getElementById('ff-desc');
-  var ecoBtn = document.getElementById('desc-eco-btn');
-  var hiBtn  = document.getElementById('desc-hi-btn');
-  if (!el) return;
-  descModeOverride = mode;
-  if (mode === 'eco') {
-    el.value = 10;
-    ecoBtn.style.background = 'var(--blue-bg)';   ecoBtn.style.color = 'var(--blue-text)';
-    hiBtn.style.background  = 'var(--bg2)';        hiBtn.style.color  = 'var(--text2)';
-  } else {
-    el.value = 25;
-    hiBtn.style.background  = 'var(--blue-bg)';   hiBtn.style.color = 'var(--blue-text)';
-    ecoBtn.style.background = 'var(--bg2)';        ecoBtn.style.color = 'var(--text2)';
-  }
-  update();
-}
 
 // Last planned values — read by the flight log page
 // Persist lastPlan across sessions so Act vs Plan works after app restart
@@ -1232,7 +1193,6 @@ var lastPlan = (function(){
 })();
 
 window.compute = compute;
-window.setDescMode = setDescMode;
 window.update = update;
 window.fmtTime = fmtTime;
 window.applyRealPerfToFields = applyRealPerfToFields;
@@ -1553,15 +1513,18 @@ function fetchWindsAloft() {
     var tas       = parseFloat(document.getElementById('tas').value)||280;
     var dist      = parseInt(document.getElementById('dist').value)||500;
     var climbRate = parseFloat(document.getElementById('climb-rate').value)||1400;
-    var descRate  = parseFloat(document.getElementById('desc-rate').value)||1000;
-
+  
     // Compute climb/cruise/descent distances (simplified, wind-neutral for waypoint geometry)
     var climbDelta = Math.max(0, alt-depElev);
     var climbMins  = climbDelta/climbRate;
     var climbDist  = (tas*0.55)*(climbMins/60);
     var descDelta  = Math.max(0, alt-arrElev);
-    var descMins   = descDelta/descRate;
-    var descDistUncapped = (tas*0.85)*(descMins/60);
+    // Use 2.5° FPA geometry to estimate descent distance for waypoint placement
+    var descFpaDeg = 2.5;
+    var descAvgTas = tas * 0.92; // approximate avg TAS during descent (~slightly less than cruise)
+    var descVS_fpm = descAvgTas * Math.sin(descFpaDeg * Math.PI / 180) * 101.27;
+    var descMins   = descDelta / Math.max(1, descVS_fpm);
+    var descDistUncapped = descAvgTas * (descMins / 60);
     var remainAfterClimb = Math.max(0, dist-climbDist);
     var descDist   = Math.min(descDistUncapped, remainAfterClimb);
     var cruiseDist = Math.max(0, dist-climbDist-descDist);
@@ -2174,7 +2137,6 @@ function refreshAltPlan() {
   var ffCruise  = parseFloat(document.getElementById('ff-cruise').value)||32;
   var ffDesc    = parseFloat(document.getElementById('ff-desc').value)||10;
   var climbRate = parseFloat(document.getElementById('climb-rate').value)||1400;
-  var descRate  = parseFloat(document.getElementById('desc-rate').value)||1000;
   var tas       = parseFloat(document.getElementById('tas').value)||280;
   var reserveGph  = parseFloat(document.getElementById('reserve-gph').value)||38;
   var reserveMinsRaw = document.getElementById('reserve-mins').value;
@@ -2195,7 +2157,7 @@ function refreshAltPlan() {
 
   var divert = _compute(altDist, altAlt, destElev, altElev,
                        ffClimb, ffCruise, ffDesc,
-                       climbRate, descRate, tas, altWs, altWd);
+                       climbRate, tas, altWs, altWd);
 
   // Fuel at alternate after divert
   var altArrFuel = destFuel !== null ? +(destFuel - divert.totalGal).toFixed(1) : null;

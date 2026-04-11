@@ -37,8 +37,9 @@ def densityRatio(a):
 def kiasToKtas(k, a): return k / math.sqrt(densityRatio(a))
 
 def avgDescentTas(c, ar):
+    # Lancair IV-PT descent: 220 KIAS, 1500 fpm, 25 gph, NP ~1800 rpm
     mid = (c+ar)/2
-    return (kiasToKtas(260,c) + kiasToKtas(260,mid) + kiasToKtas(260,ar)) / 3
+    return (kiasToKtas(220,c) + kiasToKtas(220,mid) + kiasToKtas(220,ar)) / 3
 
 def fmtTime(m):
     t = math.floor(m+0.5)
@@ -51,14 +52,18 @@ def cruiseGphAtAlt(a, anc=22000, g=30.0):
     f = 1 + abs(a-anc)/1000*0.008
     return g*max(0.6,min(1.5,f))
 
-def compute(dist, cAlt, dEl, aEl, cGph, crGph, dGph, cR, dR, tas, ws, wd):
+def compute(dist, cAlt, dEl, aEl, cGph, crGph, dGph, cR, tas, ws, wd):
+    # dR removed — descent VS derived from 2.5° FPA geometry
     gs  = getGS(tas, ws, wd)
     wss = -ws if wd=='tail' else ws
     cD    = max(0, cAlt-dEl);  cMins = cD/cR;  cGal = cGph*(cMins/60)
     cAS   = tas*0.55;           cGS   = max(10, cAS-wss)
     cGrnd = cGS*(cMins/60)
-    dD     = max(0, cAlt-aEl); dMRaw = dD/dR
-    avgDT  = avgDescentTas(cAlt, aEl); dGS = max(10, avgDT-wss)
+    dD     = max(0, cAlt-aEl)
+    avgDT  = avgDescentTas(cAlt, aEl)
+    avgVS_fpm = avgDT * math.sin(2.5 * math.pi / 180) * 101.27
+    dMRaw  = dD / max(1, avgVS_fpm)
+    dGS    = max(10, avgDT-wss)
     dGrndU = dGS*(dMRaw/60); rem = max(0, dist-cGrnd)
     dGrnd  = min(dGrndU, rem)
     dMins  = dMRaw*(dGrnd/max(0.01,dGrndU)) if dGrnd < dGrndU else dMRaw
@@ -76,6 +81,7 @@ def compute(dist, cAlt, dEl, aEl, cGph, crGph, dGph, cR, dR, tas, ws, wd):
         'descDist':   round(dGrnd),    'avgDesTas':   round(avgDT),
         'totalGal':   round(tGal,1),   'totalMins':   tMins,
         'todNm':      round(dGrnd),    'noAlt':       cGrnd >= dist,
+        'avgDescVS':  round(avgVS_fpm),
         '_cG': cGrnd, '_crG': crGrnd, '_dG': dGrnd, '_tG': tGal,
     }
 
@@ -97,7 +103,7 @@ def haversineNm(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlam/2)**2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
-def simulate(dist, alt, dEl, aEl, fCl, fCr, fDe, cR, dR, tas, ws, wd,
+def simulate(dist, alt, dEl, aEl, fCl, fCr, fDe, cR, tas, ws, wd,
              fob, rGph, rMins, taxi, altD, perfData=None, isaDev=0):
     if rMins is None or str(rMins) == '': rMins = 60
     rMins = float(rMins)
@@ -114,12 +120,12 @@ def simulate(dist, alt, dEl, aEl, fCl, fCr, fDe, cR, dR, tas, ws, wd,
         lo, hi = 25, 1400
         for _ in range(20):
             mid = round((lo+hi)/2)
-            rT  = compute(mid,alt,dEl,aEl,fCl,fCrEff,fDe,cR,dR,tasEff,ws,wd)
+            rT  = compute(mid,alt,dEl,aEl,fCl,fCrEff,fDe,cR,tasEff,ws,wd)
             if rT['totalGal']+fixed <= fobAT: maxD=mid; lo=mid+1
             else: hi=mid-1
     maxD = min(maxD, 1400)
     effD = min(dist, maxD) if maxD > 0 else dist
-    r    = compute(effD, alt, dEl, aEl, fCl, fCrEff, fDe, cR, dR, tasEff, ws, wd)
+    r    = compute(effD,alt,dEl,aEl,fCl,fCrEff,fDe,cR,tasEff,ws,wd)
     minS = round(r['totalGal']+fixed, 1)
     lF   = round(fobAT-r['totalGal'], 1)
     marg = round(lF-rGal-aGal, 1)
@@ -129,7 +135,7 @@ def simulate(dist, alt, dEl, aEl, fCl, fCr, fDe, cR, dR, tas, ws, wd,
 
 def simulate_altplan(altDist, altAlt, altElev, destElev, ws, wd,
                      fob, taxi, rGph, rMins, tripTotalGal,
-                     fCl, fCr, fDe, cR, dR, tas):
+                     fCl, fCr, fDe, cR, tas):
     """
     Replica of refreshAltPlan() computation.
     tripTotalGal: lp.totalGal from the main planner (lastPlan)
@@ -139,8 +145,7 @@ def simulate_altplan(altDist, altAlt, altElev, destElev, ws, wd,
     rMins=float(rMins); rGal=round(rGph*(rMins/60),1)
     fobAT    = fob - taxi
     destFuel = round(fobAT - tripTotalGal, 1)
-    divert   = compute(altDist, altAlt, destElev, altElev,
-                       fCl, fCr, fDe, cR, dR, tas, ws, wd)
+    divert   = compute(altDist,altAlt,destElev,altElev,fCl,fCr,fDe,cR,tas,ws,wd)
     altArrFuel = round(destFuel - divert['totalGal'], 1)
     altMargin  = round(altArrFuel - rGal, 1)
     noFuel     = destFuel < divert['totalGal'] + rGal
@@ -157,7 +162,7 @@ def simulate_altplan(altDist, altAlt, altElev, destElev, ws, wd,
 
 # Default inputs matching app DEFAULTS
 DEFAULTS = dict(dist=500, alt=22000, dEl=1000, aEl=1000,
-                fCl=37, fCr=30, fDe=10, cR=1400, dR=1000,
+                fCl=37, fCr=30, fDe=25, cR=1400,
                 tas=285, ws=0, wd='head',
                 fob=145, rGph=38, rMins=60, taxi=3, altD=0,
                 perfData=None, isaDev=0)
@@ -188,8 +193,8 @@ def test_A():
     chk("A3.  climbTime=(22000-1000)/1400≈15min", abs(r['climbMins']-round((22000-1000)/1400))<1)
     chk("A4.  climbFuel=37×(21000/1400)/60≈9.4gal", abs(r['climbGal']-round(37*21000/1400/60,1))<0.3)
     chk("A5.  GS=285 (TAS no wind)", r['gs']==285)
-    chk("A6.  descTAS ∈ [264,370]", 264<=r['avgDesTas']<=370)
-    chk("A7.  descTime=(22000-1000)/1000=21min", abs(r['descMins']-21)<1)
+    chk("A6.  descTAS ∈ [223,312] (220 KIAS FL22k→1k)", 223<=r['avgDesTas']<=312)
+    chk("A7.  descTime≈18min (22000ft / 1174fpm avg VS from 2.5°FPA)", abs(r['descMins']-18)<2)
     chk("A8.  TOD=descDist", r['todNm']==r['descDist'])
     chk("A9.  fobAfterTaxi=142", s['fobAT']==142)
     chk("A10. reserveGal=38.0", s['rGal']==38.0)
@@ -293,9 +298,9 @@ def test_F():
     print("\n── F. WIND EDGE CASES")
     rH=run(ws=0,wd='head')['r']; rT=run(ws=0,wd='tail')['r']
     chk("F1. ws=0: head==tail", rH['gs']==rT['gs']==285 and rH['totalGal']==rT['totalGal'])
-    r=compute(500,17000,1000,1000,37,32,10,1400,1000,280,250,'head')
+    r=compute(500,22000,1000,1000,37,30,25,1400,285,250,'head')
     chk("F2. ws=250 HW: GS floored at 50", r['gs']==50)
-    r=compute(500,17000,1000,1000,37,32,10,1400,1000,320,30,'tail')
+    r=compute(500,22000,1000,1000,37,30,25,1400,320,30,'tail')
     chk("F3. TW TAS=320: GS=350", r['gs']==350)
     for ws in [10,20,30,40]:
         rHW=run(ws=ws,wd='head')['r']; rTW=run(ws=ws,wd='tail')['r']
@@ -357,8 +362,9 @@ def test_I():
         abs(s_slow['r']['cruiseMins']/max(1,s_fast['r']['cruiseMins'])-320/240)<0.15)
     chk("I5. slower climb rate: more time+fuel",
         run(cR=800)['r']['climbMins']>run(cR=2000)['r']['climbMins'])
-    chk("I6. slower desc rate: more desc time",
-        run(dR=500)['r']['descMins']>run(dR=2000)['r']['descMins'])
+    # I6 removed — descent rate is now derived from 2.5° FPA, not user-settable
+    chk("I6. higher cruise alt = longer descent (more delta alt)",
+        run(alt=28000)['r']['descMins']>run(alt=10000)['r']['descMins'])
 
 # ════════════════════════════════════════════════════════════════════════════
 # SCENARIO J — GPH MODEL CONSISTENCY
@@ -412,7 +418,7 @@ def test_K():
     d_hot=[{'alt':22000,'tas':275,'ff':40.0,'isa':0}]  # worse than generic 30.0
     s_hot=run(perfData=d_hot,isaDev=0)
     chk("K7. high real FF=40 (worse than generic 30): maxDist shrinks", s_hot['maxD']<s_gen['maxD'])
-    rM=compute(s_hot['maxD'],22000,1000,1000,37,40,10,1400,1000,275,0,'head')
+    rM=compute(s_hot['maxD'],22000,1000,1000,37,40,10,1400,275,0,'head')
     chk("K7. maxDist valid: tripFuel+fixed≤fobAT",
         round(rM['totalGal']+s_hot['fixed'],1)<=s_hot['fobAT'])
 
@@ -421,7 +427,7 @@ def test_K():
 # ════════════════════════════════════════════════════════════════════════════
 def test_L():
     print("\n── L. ACT vs PLAN / lastPlan")
-    r=compute(500,17000,1000,1000,37,32,10,1400,1000,280,0,'head')
+    r=compute(500,17000,1000,1000,37,32,10,1400,280,0,'head')
     lp={'dep':'KAFO','arr':'KGEU','alt':17000,'dist':500,'tas':280,'ff':32.0,
         'cruiseMins':r['cruiseMins'],'cruiseGal':r['cruiseGal'],
         'totalGal':r['totalGal'],'totalMins':r['totalMins']}
@@ -446,7 +452,7 @@ def test_M():
         gph=cruiseGphAtAlt(a,17000,32)
         if a>=17000: tasAdj=min(TAS_CEIL,280+(a-17000)/1000*tasRate)
         else: tasAdj=max(160,cruiseKias/math.sqrt(densityRatio(a)))
-        res=compute(500,a,1000,1000,37,gph,10,1400,1000,tasAdj,0,'head')
+        res=compute(500,a,1000,1000,37,gph,10,1400,tasAdj,0,'head')
         fuel=None if res['_cG']>=500 else res['totalGal']
         fuelBars.append(fuel)
         print(f"  {a:5}ft | {gph:.3f} | {tasAdj:.1f}kt | {str(fuel)+'gal' if fuel else 'UNREACHABLE'}")
@@ -468,11 +474,12 @@ def test_N():
     chk("N4. density SL=1.0", abs(densityRatio(0)-1.0)<0.001)
     chk("N5. 260KIAS@10k≈303KTAS", abs(kiasToKtas(260,10000)-303)<3)
     chk("N6. 220KIAS@10k≈256KTAS (ALT_KTAS)", abs(kiasToKtas(220,10000)-256)<2)
-    for cAlt,aAlt in [(17000,1000),(28000,1000),(17000,6204),(10000,5000)]:
+    for cAlt,aAlt in [(22000,1000),(28000,1000),(17000,1000),(10000,5000)]:
         avg=avgDescentTas(cAlt,aAlt)
-        lo=min(kiasToKtas(260,cAlt),kiasToKtas(260,aAlt))
-        hi=max(kiasToKtas(260,cAlt),kiasToKtas(260,aAlt))
-        chk(f"N7. avgDescTas({cAlt}→{aAlt})={avg:.0f} ∈ [{lo:.0f},{hi:.0f}]", lo<=avg<=hi)
+        lo=kiasToKtas(220,aAlt)   # lowest alt = lowest TAS
+        hi=kiasToKtas(220,cAlt)   # highest alt = highest TAS
+        chk(f"N7. avgDescTas_220({cAlt}→{aAlt})={avg:.0f} ∈ [{lo:.0f},{hi:.0f}]",
+            lo<=avg<=hi)
 
 # ════════════════════════════════════════════════════════════════════════════
 # SCENARIO O — fmtTime
@@ -500,14 +507,14 @@ def test_P():
 def test_Q():
     print("\n── Q. MONOTONICITY & STRESS")
     dists=[100,200,300,400,500]
-    fuels=[compute(d,17000,1000,1000,37,32,10,1400,1000,280,0,'head')['totalGal'] for d in dists]
-    times=[compute(d,17000,1000,1000,37,32,10,1400,1000,280,0,'head')['totalMins'] for d in dists]
+    fuels=[compute(d,17000,1000,1000,37,32,10,1400,280,0,'head')['totalGal'] for d in dists]
+    times=[compute(d,17000,1000,1000,37,32,10,1400,280,0,'head')['totalMins'] for d in dists]
     for i in range(len(dists)-1):
         chk(f"Q1. dist {dists[i]}→{dists[i+1]}nm: more fuel ({fuels[i]:.1f}<{fuels[i+1]:.1f})", fuels[i]<fuels[i+1])
         chk(f"Q1. dist {dists[i]}→{dists[i+1]}nm: more time", times[i]<times[i+1])
     tasRate=(TAS_CEIL-280)/max(1,TAS_CEIL_ALT-17000)*1000
     gph21=cruiseGphAtAlt(21000,17000,32); tas21=min(TAS_CEIL,280+(21000-17000)/1000*tasRate)
-    r=compute(850,21000,6204,5434,37,gph21,10,1400,1000,tas21,40,'head')
+    r=compute(850,21000,6204,5434,37,gph21,10,1400,tas21,40,'head')
     chk("Q2. stress 850nm FL210 40ktHW: dist sum", abs(r['_cG']+r['_crG']+r['_dG']-850)<0.5)
     chk("Q2. stress: all fuel ≥0", r['climbGal']>=0 and r['cruiseGal']>=0 and r['descGal']>=0)
     chk("Q2. stress: fuel sum correct", abs(r['climbGal']+r['cruiseGal']+r['descGal']-r['totalGal'])<0.2)
@@ -534,7 +541,7 @@ def test_R():
            ws=0, wd='head', fob=MAIN_FOB, taxi=TAXI, rGph=RGPH, rMins=RMINS,
            tripGal=TRIP_FUEL, fCl=37, fCr=32, fDe=10, cR=1400, dR=1000, tas=280):
         return simulate_altplan(altDist,altAlt,altElev,destElev,ws,wd,
-                                fob,taxi,rGph,rMins,tripGal,fCl,fCr,fDe,cR,dR,tas)
+                                fob,taxi,rGph,rMins,tripGal,fCl,fCr,fDe,cR,tas)
 
     s=ap()
     print(f"  Dest fuel:{s['destFuel']}gal  Divert:{s['divert']['totalGal']}gal  "
